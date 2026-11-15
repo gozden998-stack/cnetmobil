@@ -148,44 +148,6 @@ Bu ürün Hepsiburada'da GERÇEK olarak açılacak. Onaylıyor musunuz?`;
   );
 }
 
-// Adından bulunan WingSM ürün önerisi: tek tıkla onaylanır (elle eşleşme olarak kaydedilir).
-function SuggestionBox({ row, onChanged }: { row: Row; onChanged: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const suggestion = row.suggestion;
-
-  if (!suggestion) return null;
-
-  const confirm = async () => {
-    setBusy(true);
-
-    try {
-      const response = await fetch("/api/online/hepsiburada/map", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ hbSku: row.hepsiburadaSku, malKod: suggestion.malKod }),
-      });
-      const payload = await response.json().catch(() => null);
-
-      if (payload?.success) onChanged();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="mt-1 flex max-w-[300px] items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5 text-[10px] font-semibold text-amber-800">
-      <span className="flex-1">
-        Öneri (%{Math.round(suggestion.score * 100)}): {suggestion.malAd}
-        <span className="block font-mono text-[9px] text-amber-600">{suggestion.malKod} · WingSM {suggestion.adet} adet</span>
-      </span>
-      <button type="button" disabled={busy} onClick={() => void confirm()} className="rounded bg-amber-600 px-2 py-1 text-[9px] font-black uppercase text-white disabled:opacity-50">
-        Onayla
-      </button>
-    </div>
-  );
-}
-
 // Hepsiburada ürününü WingSM sıfır ürünüyle eşleştiren küçük arama kutusu.
 // Eşleşme varsa kod + kaldır düğmesi; yoksa ad/kod yazıp WingSM ürünlerinden seçilir. Yalnız bizim tabloya yazar.
 function WingPicker({ row, onChanged }: { row: Row; onChanged: () => void }) {
@@ -473,7 +435,6 @@ export default function Hepsiburada() {
               ["soldout", "Tükendi (stok 0)"],
               ["matched", "Eşleşmiş"],
               ["unmatched", "Eşleşmemiş"],
-              ["suggested", "Önerili"],
             ] as Array<[string, string]>).map(([key, label]) => (
               <button
                 key={key}
@@ -487,31 +448,6 @@ export default function Hepsiburada() {
               </button>
             ))}
           </div>
-          {rows.some((row) => row.suggestion && row.suggestion.score >= 0.85) && (
-            <button
-              type="button"
-              disabled={loading}
-              onClick={async () => {
-                const sure = rows.filter((row) => row.suggestion && row.suggestion.score >= 0.85);
-
-                if (!window.confirm(`${sure.length} ürün için yüksek güvenli öneri (%85 ve üstü) onaylanacak. Devam edilsin mi?`)) return;
-
-                for (const row of sure) {
-                  await fetch("/api/online/hepsiburada/map", {
-                    method: "POST",
-                    credentials: "same-origin",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ hbSku: row.hepsiburadaSku, malKod: row.suggestion.malKod }),
-                  });
-                }
-
-                void load(tab, offset);
-              }}
-              className="h-9 rounded-lg bg-amber-600 px-4 text-[11px] font-black uppercase text-white disabled:opacity-50"
-            >
-              Bu sayfadaki yüksek güvenli önerileri onayla ({rows.filter((row) => row.suggestion && row.suggestion.score >= 0.85).length})
-            </button>
-          )}
         </div>
       )}
 
@@ -663,15 +599,13 @@ export default function Hepsiburada() {
               {filtered.map((row, index) => (
                 <tr key={`${row.hepsiburadaSku ?? index}`}>
                   <td className="px-4 py-3">
-                    <div className={`text-[12px] font-semibold ${row.nameSource === "HEPSIBURADA" ? "italic text-slate-500" : "text-slate-800"}`}>{row.productName || "-"}</div>
+                    <div className="text-[12px] font-semibold text-slate-800">{row.productName || "-"}</div>
                     {row.wingClass && <div className="text-[10px] font-semibold text-slate-400">sınıf: {row.wingClass}</div>}
-                    {row.nameSource === "HEPSIBURADA" && <div className="text-[10px] font-semibold text-slate-400">Hepsiburada adı{row.brand ? ` · ${row.brand}` : ""}</div>}
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.hepsiburadaSku}</td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.merchantSku}</td>
                   <td className="px-4 py-3">
                     <WingPicker row={row} onChanged={() => void load(tab, offset)} />
-                    <SuggestionBox row={row} onChanged={() => void load(tab, offset)} />
                   </td>
                   <td className="px-4 py-3 text-right text-[12px] font-black">{row.availableStock ?? "-"}</td>
                   <td
