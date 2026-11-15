@@ -19,6 +19,9 @@
 export const HEPSIBURADA_LISTING_BASE = (process.env.HEPSIBURADA_LISTING_BASE || "https://listing-external.hepsiburada.com").replace(/\/+$/, "");
 export const HEPSIBURADA_ORDERS_BASE = (process.env.HEPSIBURADA_ORDERS_BASE || "https://oms-external.hepsiburada.com").replace(/\/+$/, "");
 
+// Ürün (katalog) servisi: ürün adı, barkod, durum gibi bilgiler burada (dokümanda yalnızca test adresi yazıyor).
+export const HEPSIBURADA_CATALOG_BASE = (process.env.HEPSIBURADA_CATALOG_BASE || "https://mpop.hepsiburada.com/product").replace(/\/+$/, "");
+
 const text = (value: unknown) => String(value ?? "").trim();
 
 export type HepsiburadaConfig = { merchantId: string; serviceKey: string; integrator: string };

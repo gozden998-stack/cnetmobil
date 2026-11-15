@@ -11,6 +11,7 @@ import { NextRequest } from "next/server";
 
 import { json, requireAdminSession } from "@/app/api/wingsm/score-rules/_shared";
 import {
+  HEPSIBURADA_CATALOG_BASE,
   HEPSIBURADA_LISTING_BASE,
   HEPSIBURADA_ORDERS_BASE,
   getHepsiburadaConfig,
@@ -96,6 +97,25 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     result.orders = { error: error instanceof Error ? error.message : String(error) };
+  }
+
+  // ?catalog=1: ürün (katalog) servisinden ürün adının gelip gelmediğini dener (ilk 3 ürün, salt okunur).
+  if (request.nextUrl.searchParams.get("catalog") === "1") {
+    try {
+      const catalog = await hepsiburadaFetch(HEPSIBURADA_CATALOG_BASE, "/api/products/all-products-of-merchant/{merchantId}", { query: { page: 0, size: 3 } });
+      const rows: any[] = Array.isArray(catalog.body?.data) ? catalog.body.data : Array.isArray(catalog.body?.content) ? catalog.body.content : Array.isArray(catalog.body) ? catalog.body : [];
+
+      result.catalog = {
+        host: HEPSIBURADA_CATALOG_BASE,
+        status: catalog.status,
+        ok: catalog.ok,
+        topLevelKeys: catalog.body && typeof catalog.body === "object" && !Array.isArray(catalog.body) ? Object.keys(catalog.body).slice(0, 15) : null,
+        rowKeys: rows[0] ? Object.keys(rows[0]).slice(0, 40) : [],
+        firstRowRaw: rows[0] ? JSON.stringify(rows[0]).slice(0, 900) : catalog.raw.slice(0, 400),
+      };
+    } catch (error) {
+      result.catalog = { error: error instanceof Error ? error.message : String(error) };
+    }
   }
 
   return json(result);
