@@ -134,6 +134,9 @@ type PreparedDevice = {
   // stok/fiyat kabul etmiyor. Bu, approve-item çağrısının yapılması
   // gerektiğini processDevice'a bildirir.
   needsMatchApproval: boolean;
+  // Referans ürün AYNI kalitede değil (aynı model/hafıza, farklı kalite) bulunduysa true: kalite ve garanti
+  // özellikleri referanstan kopyalanmaz, bu cihazın bilgisinden seçilir.
+  relaxedGradeReference?: boolean;
 };
 
 const idefixCategoryAttributeCache = new Map<string, Promise<CategoryAttribute[]>>();
@@ -662,14 +665,14 @@ async function exactProductForGroup(products: IdefixProduct[], group: DeviceGrou
   return matches[0] || null;
 }
 
-function referenceProductForGroup(products: IdefixProduct[], group: DeviceGroup) {
+function referenceProductForGroup(products: IdefixProduct[], group: DeviceGroup, anyGrade = false) {
   const grade = normalizeGrade(group.grade);
 
   const candidates = products
     .map((product) => {
       const title = product.title;
 
-      if (!baseIdentityMatchesTitle(title, group) || detectGradeFromTitle(title) !== grade) {
+      if (!baseIdentityMatchesTitle(title, group) || (!anyGrade && detectGradeFromTitle(title) !== grade)) {
         return null;
       }
 
@@ -1001,7 +1004,7 @@ function attributeAvailableValues(attribute: CategoryAttribute) {
     .slice(0, 30);
 }
 
-async function buildCreateAttributes(reference: IdefixProduct, group: DeviceGroup) {
+async function buildCreateAttributes(reference: IdefixProduct, group: DeviceGroup, options: { relaxedGrade?: boolean } = {}) {
   const categoryId = reference.categoryId;
 
   if (categoryId === null || categoryId === undefined || text(categoryId) === "") {
@@ -1036,6 +1039,25 @@ async function buildCreateAttributes(reference: IdefixProduct, group: DeviceGrou
 
       output.push(selected);
       colorFound = true;
+      continue;
+    }
+
+    // Referans farklı kalitedeyse kalite (kozmetik) ve garanti özelliği referanstan KOPYALANMAZ: bu cihazın
+    // bilgisinden seçilir; güvenle seçilemezse ürün açılmaz (yanlış kaliteyle ürün yayınlanmasın).
+    if (options.relaxedGrade && (isCosmeticAttribute(attribute) || isWarrantyAttribute(attribute))) {
+      const own = derivedRequiredAttributeValue(attribute, group);
+
+      if (!own) {
+        throw new Error(
+          `${productTitle(group)}: referans ürün farklı kalitede olduğu için "${
+            text(attribute.attributeTitle) || String(attribute.attributeId)
+          }" bu cihazın bilgisinden seçilmeli ama güvenle seçilemedi. Kullanılabilir değerler: ${
+            attributeAvailableValues(attribute).join(", ") || "-"
+          }.`
+        );
+      }
+
+      output.push(own);
       continue;
     }
 
@@ -1850,7 +1872,15 @@ async function prepareDevice(
   // ancak GÜVENLİ bir referans (aynı model/hafıza/grade, farklı renk)
   // varsa açılabilir. Yoksa "belirsiz katalog referansı" kuralı gereği
   // otomatik ürün açılmaz.
-  const referenceProduct = referenceProductForGroup(products, group);
+  let referenceProduct = referenceProductForGroup(products, group);
+  let relaxedGradeReference = false;
+
+  // Aynı kalitede referans yoksa aynı model/hafızanın FARKLI kalitedeki ürünü referans alınır; bu durumda
+  // kalite ve garanti özelliği referanstan değil bu cihazdan seçilir (bkz. buildCreateAttributes).
+  if (!referenceProduct) {
+    referenceProduct = referenceProductForGroup(products, group, true);
+    relaxedGradeReference = Boolean(referenceProduct);
+  }
 
   if (!referenceProduct) {
     throw new Error(
@@ -1864,7 +1894,7 @@ async function prepareDevice(
     throw new Error(`${productTitle(group)}: referans üründe categoryId yok. Otomatik ürün açılmaz.`);
   }
 
-  const attributes = await buildCreateAttributes(referenceProduct, group);
+  const attributes = await buildCreateAttributes(referenceProduct, group, { relaxedGrade: relaxedGradeReference });
 
   const colorTemplate = await exactColorLocalTemplate(client, group);
 
@@ -1900,6 +1930,7 @@ async function prepareDevice(
     imageUrl: colorTemplate.imageUrl,
     attributes,
     needsMatchApproval: false,
+    relaxedGradeReference,
   };
 }
 
@@ -2246,6 +2277,100 @@ async function processDevice(client: PoolClient, prepared: PreparedDevice) {
 // POST /api/online/idefix/create-device
 // ============================================================
 
+// ============================================================
+// Kuru çalışma: N11 adaylarını İdefix'e göndermeden değerlendirir
+// ============================================================
+
+async function dryRunAll(data: Record<string, unknown>) {
+  const offset = Math.max(0, Math.trunc(Number(data.offset) || 0));
+  const limit = Math.min(60, Math.max(1, Math.trunc(Number(data.limit) || 25)));
+
+  const pool = getIdefixDbPool();
+
+  const candidates = await pool.query(
+    `
+      SELECT n11.external_stock_code AS imei, n11.brand, n11.model, n11.memory, n11.color, n11.grade, n11.warranty,
+             n11.sale_price, n11.list_price, n11.title
+      FROM public.online_listings n11
+      WHERE n11.channel = 'N11'
+        AND n11.external_product_id IS NOT NULL
+        AND UPPER(COALESCE(n11.sync_status, '')) = 'SYNCED'
+        AND UPPER(COALESCE(n11.product_status, '')) = 'ACTIVE'
+        AND UPPER(COALESCE(n11.sale_status, '')) = 'ON_SALE'
+        AND COALESCE(n11.quantity, 0) > 0
+        AND n11.external_stock_code ~ '^[0-9]{15}$'
+        AND NOT EXISTS (
+          SELECT 1 FROM public.online_listings idf
+          WHERE idf.channel = 'IDEFIX' AND idf.raw_data ->> 'sourceImei' = n11.external_stock_code
+        )
+      ORDER BY n11.updated_at DESC, n11.id DESC
+    `
+  );
+
+  const total = candidates.rows.length;
+  const slice = candidates.rows.slice(offset, offset + limit);
+  const client = await pool.connect();
+
+  try {
+    const products = await fetchAllProducts();
+    const results: Array<Record<string, unknown>> = [];
+
+    for (const row of slice) {
+      const label = [text(row.brand), text(row.model), text(row.memory), text(row.color), text(row.grade)].filter(Boolean).join(" | ");
+
+      try {
+        const missing = [
+          ["Marka", row.brand],
+          ["Model", row.model],
+          ["Hafıza", row.memory],
+          ["Renk", row.color],
+          ["Grade", row.grade],
+          ["Garanti", row.warranty],
+        ]
+          .filter(([, value]) => !text(value))
+          .map(([name]) => name);
+
+        if (missing.length) throw new Error(`N11 ilanında eksik alan: ${missing.join(", ")}.`);
+
+        const salePrice = money(row.sale_price, "satış fiyatı");
+        const listPrice = Math.max(money(row.list_price ?? row.sale_price, "liste fiyatı"), salePrice);
+        const group: DeviceGroup = {
+          brand: text(row.brand),
+          model: text(row.model),
+          memory: text(row.memory),
+          color: text(row.color),
+          grade: normalizeGrade(row.grade),
+          warranty: text(row.warranty),
+        };
+        const prepared = await prepareDevice(client, products, group, text(row.imei), salePrice, listPrice);
+
+        results.push({
+          imei: text(row.imei),
+          label,
+          action: prepared.action,
+          barcode: prepared.barcode,
+          stockBefore: prepared.targetBeforeStock,
+          stockAfter: prepared.targetAfterStock,
+          needsMatchApproval: prepared.needsMatchApproval,
+          relaxedGradeReference: prepared.relaxedGradeReference === true,
+          referenceTitle: prepared.referenceProduct ? text(prepared.referenceProduct.title) : null,
+        });
+      } catch (error) {
+        results.push({
+          imei: text(row.imei),
+          label,
+          action: "ERROR",
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+
+    return noStoreJson({ success: true, dryRun: true, total, offset, limit, processed: slice.length, results });
+  } finally {
+    client.release();
+  }
+}
+
 export async function POST(request: NextRequest) {
   let client: PoolClient | null = null;
   let lockHeld = false;
@@ -2268,6 +2393,13 @@ export async function POST(request: NextRequest) {
     }
 
     const data = body as Record<string, unknown>;
+
+    // KURU ÇALIŞMA (toplu, salt okunur): N11'den taşıma adaylarının her biri için, gerçek açma akışıyla AYNI
+    // karar adımı (prepareDevice) çalıştırılır ama İdefix'e HİÇBİR ŞEY yazılmaz, DB'ye yazılmaz.
+    // Her aday: mevcut ürüne stok eklenir (EXISTING_PRODUCT) / yeni ürün açılır (CREATE_PRODUCT) / açılamaz (sebep).
+    if (data.dryRunAll === true) {
+      return await dryRunAll(data);
+    }
 
     const imei = String(data.imei ?? "").replace(/\s+/g, "").trim();
 
