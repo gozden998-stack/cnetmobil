@@ -32,6 +32,7 @@ function OpenButton({ row }: { row: Row }) {
   const [open, setOpen] = useState(false);
   const [price, setPrice] = useState(row.satisFiyat ? String(row.satisFiyat) : "");
   const [stock, setStock] = useState(String(row.adet ?? 0));
+  const [hbSku, setHbSku] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [trackingId, setTrackingId] = useState("");
@@ -40,7 +41,8 @@ function OpenButton({ row }: { row: Row }) {
   const send = async () => {
     const summary = `${row.malAd}
 Kod: ${row.malKod}
-Barkod: ${row.barkod}
+Barkod: ${row.barkod}${hbSku ? `
+Hepsiburada SKU: ${hbSku}` : ""}
 Fiyat: ${price} TL
 Stok: ${stock}
 
@@ -56,7 +58,7 @@ Bu ürün Hepsiburada'da GERÇEK olarak açılacak. Onaylıyor musunuz?`;
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ malKod: row.malKod, price: Number(price), stock: Number(stock), confirm: true }),
+        body: JSON.stringify({ malKod: row.malKod, price: Number(price), stock: Number(stock), hbSku: hbSku.trim(), confirm: true }),
       });
       const payload = await response.json().catch(() => null);
 
@@ -116,10 +118,19 @@ Bu ürün Hepsiburada'da GERÇEK olarak açılacak. Onaylıyor musunuz?`;
           <input value={stock} onChange={(e) => setStock(e.target.value)} className="mt-1 h-8 w-full rounded-lg border border-slate-200 px-2 text-[12px]" />
         </label>
       </div>
+      <label className="block text-[11px] font-bold text-slate-600">
+        Hepsiburada SKU (isteğe bağlı, barkod bulunamazsa)
+        <input value={hbSku} onChange={(e) => setHbSku(e.target.value)} placeholder="HBCV0000XXXXXX" className="mt-1 h-8 w-full rounded-lg border border-slate-200 px-2 font-mono text-[11px]" />
+      </label>
       <div className="flex flex-wrap items-center gap-2">
         {!trackingId && (
           <button type="button" disabled={busy} onClick={() => void send()} className="h-8 rounded-lg bg-emerald-600 px-3 text-[10px] font-black uppercase text-white disabled:opacity-50">
             {busy ? "Gönderiliyor..." : "Gönder"}
+          </button>
+        )}
+        {trackingId && (
+          <button type="button" disabled={busy} onClick={() => { setTrackingId(""); setStatusText(""); setMessage(""); }} className="h-8 rounded-lg bg-slate-200 px-3 text-[10px] font-black uppercase text-slate-700">
+            Yeniden dene
           </button>
         )}
         {trackingId && (
@@ -195,7 +206,7 @@ function WingPicker({ row, onChanged }: { row: Row; onChanged: () => void }) {
     return (
       <div className="flex items-center gap-2">
         <span className="rounded bg-blue-50 px-2 py-1 font-mono text-[11px] font-black text-blue-700">{row.malKod}</span>
-        <span className="text-[10px] font-bold text-slate-400">{row.mapSource === "AUTO" ? "otomatik" : "elle"}</span>
+        <span className="text-[10px] font-bold text-slate-400">{row.mapSource === "MANUAL" ? "elle" : row.mapSource === "SKU" ? "SKU ile otomatik" : "otomatik"}</span>
         <button type="button" disabled={busy} onClick={() => setOpen(true)} className="text-[10px] font-black uppercase text-slate-500 underline">
           değiştir
         </button>
@@ -460,16 +471,17 @@ export default function Hepsiburada() {
                   </td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">{row.malKod}</td>
                   <td className="px-4 py-3 font-mono text-[11px] text-slate-600">
-                    {row.barkod ? <span className={row.barkodGecerli ? "" : "text-rose-500"}>{row.barkod}</span> : <span className="text-rose-500">barkod yok</span>}
-                    {row.barkod && !row.barkodGecerli && <div className="text-[9px] font-bold text-rose-500">gerçek EAN değil</div>}
+                    {row.barkod ? <span className={row.barkodGecerli ? "" : "text-rose-500"}>{row.barkod}</span> : row.hbSku ? null : <span className="text-rose-500">barkod yok</span>}
+                    {row.barkod && !row.barkodGecerli && !row.hbSku && <div className="text-[9px] font-bold text-rose-500">gerçek EAN değil</div>}
+                    {row.hbSku && <div className="text-[10px] font-black text-blue-600">HB SKU: {row.hbSku}</div>}
                   </td>
                   <td className="px-4 py-3 text-right text-[12px] font-bold">{row.satisFiyat ? formatMoney(row.satisFiyat) : "-"}</td>
                   <td className="px-4 py-3 text-right text-[12px] font-black">{row.adet}</td>
                   <td className="px-4 py-3">
                     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${row.opened ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
-                      {row.opened ? "AÇIK" : !row.barkod ? "BARKOD YOK" : row.barkodGecerli ? "AÇILABİLİR" : "BARKOD GEÇERSİZ"}
+                      {row.opened ? "AÇIK" : row.hbSku || row.barkodGecerli ? "AÇILABİLİR" : !row.barkod ? "BARKOD YOK" : "BARKOD GEÇERSİZ"}
                     </span>
-                    {!row.opened && row.barkod && row.barkodGecerli && <OpenButton row={row} />}
+                    {!row.opened && <OpenButton row={row} />}
                   </td>
                 </tr>
               ))}

@@ -46,3 +46,20 @@ export async function wingProductsByCode(pool: Pool, codes: string[]): Promise<M
 
   return map;
 }
+
+// WingSM'de barkod alanına Hepsiburada SKU'su yazılmış ürünler: hb_sku -> ürün özeti (tüm depoların toplamı).
+export async function wingProductsByHbSku(pool: Pool, hbSkus: string[]): Promise<Map<string, WingProduct>> {
+  const map = new Map<string, WingProduct>();
+
+  if (hbSkus.length === 0) return map;
+
+  const result = await pool.query(
+    `SELECT max(hb_sku) AS hb_sku, mal_kod, max(mal_ad) AS mal_ad, max(sinif) AS sinif, sum(miktar)::int AS adet, count(*)::int AS depo_sayisi
+     FROM public.sifir_stock WHERE hb_sku = ANY($1::text[]) GROUP BY mal_kod`,
+    [hbSkus]
+  );
+
+  for (const row of result.rows) map.set(String(row.hb_sku), row as WingProduct);
+
+  return map;
+}

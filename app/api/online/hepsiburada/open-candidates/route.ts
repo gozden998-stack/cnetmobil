@@ -19,16 +19,17 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 // Hepsiburada'daki tüm listing stok kodları (sayfa sayfa). Alınamazsa boş küme: opened yalnız eşleşme tablosundan hesaplanır.
-async function hepsiburadaMerchantSkus(): Promise<{ skus: Set<string>; error: string | null }> {
+async function hepsiburadaMerchantSkus(): Promise<{ skus: Set<string>; hbSkus: Set<string>; error: string | null }> {
   const skus = new Set<string>();
+  const hbSkus = new Set<string>();
 
-  if (!getHepsiburadaConfig()) return { skus, error: "Hepsiburada ortam değişkenleri eksik." };
+  if (!getHepsiburadaConfig()) return { skus, hbSkus, error: "Hepsiburada ortam değişkenleri eksik." };
 
   try {
     for (let offset = 0; offset < 3000; offset += 100) {
       const result = await hepsiburadaFetch(HEPSIBURADA_LISTING_BASE, "/listings/merchantid/{merchantId}", { query: { offset, limit: 100 } });
 
-      if (!result.ok) return { skus, error: `Hepsiburada HTTP ${result.status}` };
+      if (!result.ok) return { skus, hbSkus, error: `Hepsiburada HTTP ${result.status}` };
 
       const rows: any[] = Array.isArray(result.body?.listings) ? result.body.listings : [];
 
@@ -36,14 +37,18 @@ async function hepsiburadaMerchantSkus(): Promise<{ skus: Set<string>; error: st
         const sku = String(row?.merchantSku ?? "").trim();
 
         if (sku) skus.add(sku);
+
+        const hb = String(row?.hepsiburadaSku ?? "").trim().toUpperCase();
+
+        if (hb) hbSkus.add(hb);
       }
 
       if (rows.length < 100) break;
     }
 
-    return { skus, error: null };
+    return { skus, hbSkus, error: null };
   } catch (error) {
-    return { skus, error: error instanceof Error ? error.message : String(error) };
+    return { skus, hbSkus, error: error instanceof Error ? error.message : String(error) };
   }
 }
 
@@ -80,7 +85,7 @@ export async function GET(request: NextRequest) {
     const having = onlyBarcode ? `HAVING max(barkod) <> ''` : "";
     const base = `
       SELECT mal_kod, max(mal_ad) AS mal_ad, max(sinif) AS sinif, sum(miktar)::int AS adet, count(*)::int AS depo_sayisi,
-             max(barkod) AS barkod, max(satis_fiyat) AS satis_fiyat, max(kdv) AS kdv
+             max(barkod) AS barkod, max(satis_fiyat) AS satis_fiyat, max(kdv) AS kdv, max(hb_sku) AS hb_sku
       FROM public.sifir_stock ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
       GROUP BY mal_kod ${having}`;
 
@@ -106,12 +111,13 @@ export async function GET(request: NextRequest) {
         sinif: row.sinif,
         adet: row.adet,
         depoSayisi: row.depo_sayisi,
+        hbSku: row.hb_sku || null,
         barkod: row.barkod || null,
         // Barkod gerçek bir EAN/GTIN mi (sağlama basamağı tutuyor mu)? Tutmayanlar Hepsiburada'ya açılmaz.
         barkodGecerli: Boolean(row.barkod) && isValidGtin(String(row.barkod)),
         satisFiyat: row.satis_fiyat === null ? null : Number(row.satis_fiyat),
         kdv: row.kdv === null ? null : Number(row.kdv),
-        opened: opened.has(String(row.mal_kod)) || hb.skus.has(String(row.mal_kod)),
+        opened: opened.has(String(row.mal_kod)) || hb.skus.has(String(row.mal_kod)) || (Boolean(row.hb_sku) && hb.hbSkus.has(String(row.hb_sku))),
       })),
     });
   } catch (error) {

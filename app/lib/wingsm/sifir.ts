@@ -53,6 +53,9 @@ export async function ensureSifirTables(pool: Pool) {
   await pool.query(`ALTER TABLE public.sifir_stock ADD COLUMN IF NOT EXISTS barkod TEXT NOT NULL DEFAULT ''`);
   await pool.query(`ALTER TABLE public.sifir_stock ADD COLUMN IF NOT EXISTS satis_fiyat NUMERIC`);
   await pool.query(`ALTER TABLE public.sifir_stock ADD COLUMN IF NOT EXISTS kdv NUMERIC`);
+  // WingSM barkod alanlarına yazılmış Hepsiburada SKU'su (HBCV...): listing eşleştirme ve SKU ile açma için.
+  await pool.query(`ALTER TABLE public.sifir_stock ADD COLUMN IF NOT EXISTS hb_sku TEXT NOT NULL DEFAULT ''`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS sifir_stock_hbsku_idx ON public.sifir_stock (hb_sku)`);
 
   await pool.query(`CREATE INDEX IF NOT EXISTS sifir_stock_kod_idx ON public.sifir_stock (mal_kod)`);
 
@@ -105,7 +108,7 @@ export async function syncSifirStock(pool: Pool, options: { minIntervalMs?: numb
 
       // WingSM success:true / data:null dönebilir (depoda hiç kayıt yok): boş kabul edilir.
       const rows: any[] = Array.isArray(payload?.data) ? payload.data : [];
-      const picked = new Map<string, { mal_ad: string; sinif: string; miktar: number; barkod: string; fiyat: number | null; kdv: number | null }>();
+      const picked = new Map<string, { mal_ad: string; sinif: string; miktar: number; barkod: string; hbSku: string; fiyat: number | null; kdv: number | null }>();
 
       for (const row of rows) {
         const sinif = String(row?.MalSinifKod ?? "").trim().toLocaleLowerCase("tr-TR");
@@ -124,6 +127,8 @@ export async function syncSifirStock(pool: Pool, options: { minIntervalMs?: numb
           candidates.find((value) => /^\d{8,14}$/.test(value)) ||
           current?.barkod ||
           "";
+        // Hepsiburada SKU'su: barkod alanlarından biri HB ile başlayan koddur (ör. HBCV0000G8HWXX).
+        const hbSku = candidates.map((value) => value.toUpperCase()).find((value) => /^HB[A-Z0-9]{6,}$/.test(value)) || current?.hbSku || "";
         const fiyat = Number(row?.MalSatisFiyat);
         const kdv = Number(row?.MalKdvOran);
 
@@ -132,6 +137,7 @@ export async function syncSifirStock(pool: Pool, options: { minIntervalMs?: numb
           sinif,
           miktar: (current?.miktar ?? 0) + miktar,
           barkod,
+          hbSku,
           fiyat: Number.isFinite(fiyat) && fiyat > 0 ? fiyat : current?.fiyat ?? null,
           kdv: Number.isFinite(kdv) && kdv >= 0 ? kdv : current?.kdv ?? null,
         });
@@ -147,8 +153,8 @@ export async function syncSifirStock(pool: Pool, options: { minIntervalMs?: numb
           const entries = Array.from(picked.entries());
 
           await client.query(
-            `INSERT INTO public.sifir_stock (depo, mal_kod, mal_ad, sinif, miktar, barkod, satis_fiyat, kdv)
-             SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::numeric[], $6::text[], $7::numeric[], $8::numeric[])`,
+            `INSERT INTO public.sifir_stock (depo, mal_kod, mal_ad, sinif, miktar, barkod, satis_fiyat, kdv, hb_sku)
+             SELECT $1, * FROM unnest($2::text[], $3::text[], $4::text[], $5::numeric[], $6::text[], $7::numeric[], $8::numeric[], $9::text[])`,
             [
               depo,
               entries.map(([kod]) => kod),
@@ -158,6 +164,7 @@ export async function syncSifirStock(pool: Pool, options: { minIntervalMs?: numb
               entries.map(([, v]) => v.barkod),
               entries.map(([, v]) => v.fiyat),
               entries.map(([, v]) => v.kdv),
+              entries.map(([, v]) => v.hbSku),
             ]
           );
         }

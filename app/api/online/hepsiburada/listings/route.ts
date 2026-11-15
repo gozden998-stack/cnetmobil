@@ -10,7 +10,7 @@ import { NextRequest } from "next/server";
 
 import { getPool, json, requireAdminSession } from "@/app/api/wingsm/score-rules/_shared";
 import { HEPSIBURADA_LISTING_BASE, getHepsiburadaConfig, hepsiburadaFetch } from "@/app/lib/hepsiburada/server";
-import { ensureHepsiburadaMapTable, wingProductsByCode, type WingProduct } from "@/app/lib/hepsiburada/map";
+import { ensureHepsiburadaMapTable, wingProductsByCode, wingProductsByHbSku, type WingProduct } from "@/app/lib/hepsiburada/map";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -40,6 +40,7 @@ export async function GET(request: NextRequest) {
     let matchError: string | null = null;
     const manual = new Map<string, string>();
     let wing = new Map<string, WingProduct>();
+    let bySku = new Map<string, WingProduct>();
 
     try {
       const pool = getPool();
@@ -60,6 +61,8 @@ export async function GET(request: NextRequest) {
       }
 
       wing = await wingProductsByCode(pool, Array.from(codes));
+      // WingSM barkod alanına Hepsiburada SKU'su yazılmış ürünler (hb_sku): listing SKU'su ile otomatik eşleşir.
+      bySku = await wingProductsByHbSku(pool, skus);
     } catch (error) {
       matchError = error instanceof Error ? error.message : String(error);
     }
@@ -74,8 +77,9 @@ export async function GET(request: NextRequest) {
         const hbSku = String(row?.hepsiburadaSku ?? "");
         const merchantSku = String(row?.merchantSku ?? "").trim();
         const manualCode = manual.get(hbSku) ?? null;
-        const malKod = manualCode ?? (wing.has(merchantSku) ? merchantSku : null);
-        const product = malKod ? wing.get(malKod) ?? null : null;
+        const skuMatch = !manualCode ? bySku.get(hbSku) ?? null : null;
+        const malKod = manualCode ?? (skuMatch ? String(skuMatch.mal_kod) : wing.has(merchantSku) ? merchantSku : null);
+        const product = skuMatch ?? (malKod ? wing.get(malKod) ?? null : null);
 
         return {
           hepsiburadaSku: row?.hepsiburadaSku ?? null,
@@ -86,7 +90,7 @@ export async function GET(request: NextRequest) {
           isSuspended: row?.isSuspended ?? null,
           isLocked: row?.isLocked ?? null,
           malKod,
-          mapSource: malKod ? (manualCode ? "MANUAL" : "AUTO") : null,
+          mapSource: malKod ? (manualCode ? "MANUAL" : skuMatch ? "SKU" : "AUTO") : null,
           // Elle eşleşmiş ama WingSM sıfır stokta artık bulunmayan ürün: wingStock 0 gösterilir.
           productName: product?.mal_ad || null,
           wingClass: product?.sinif ?? null,

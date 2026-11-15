@@ -35,21 +35,27 @@ export async function POST(request: NextRequest) {
     await ensureHepsiburadaMapTable(pool);
 
     const product = await pool.query(
-      `SELECT max(mal_ad) AS mal_ad, max(barkod) AS barkod, max(satis_fiyat) AS satis_fiyat, sum(miktar)::int AS adet
+      `SELECT max(mal_ad) AS mal_ad, max(barkod) AS barkod, max(satis_fiyat) AS satis_fiyat, sum(miktar)::int AS adet, max(hb_sku) AS hb_sku
        FROM public.sifir_stock WHERE mal_kod = $1`,
       [malKod]
     );
     const row = product.rows[0];
 
     if (!row || !row.mal_ad) return json({ success: false, error: "Ürün WingSM sıfır stokta bulunamadı." }, 400);
-    if (!row.barkod) return json({ success: false, error: "Bu ürünün WingSM'de barkodu yok." }, 400);
+    // Hepsiburada SKU: istekte verilmediyse WingSM barkod alanına yazılmış SKU (varsa) kullanılır.
+    const hbSku = String(body?.hbSku ?? "").trim() || String(row.hb_sku ?? "").trim();
+    // Deneme için barkod biçimi elle verilebilir (ör. 14 haneli: başına 0 eklenmiş). Verilmezse WingSM barkodu kullanılır.
+    const barcode = String(body?.barcode ?? "").trim() || String(row.barkod ?? "");
+
+    // Barkod yoksa yalnızca Hepsiburada SKU ile açılabilir.
+    if (!barcode && !hbSku) return json({ success: false, error: "Bu ürünün WingSM'de barkodu yok. Hepsiburada SKU (HBCV...) girerek açabilirsiniz." }, 400);
 
     const price = body?.price === undefined || body?.price === "" ? Number(row.satis_fiyat) : Number(body.price);
     const stock = body?.stock === undefined || body?.stock === "" ? Number(row.adet) : Number(body.stock);
 
-    const result = await openOnHepsiburada(pool, { malKod, productName: String(row.mal_ad), barcode: String(row.barkod), stock, price });
+    const result = await openOnHepsiburada(pool, { malKod, productName: String(row.mal_ad), barcode, stock, price, hbSku });
 
-    return json({ success: result.ok, ...result, sent: { malKod, barcode: row.barkod, price, stock } });
+    return json({ success: result.ok, ...result, sent: { malKod, barcode, hbSku: hbSku || null, price, stock } });
   } catch (error) {
     return json({ success: false, error: error instanceof Error ? error.message : "Ürün açılamadı." }, 200);
   }

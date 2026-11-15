@@ -55,13 +55,18 @@ export function findTrackingId(body: any, depth = 0): string | null {
   return null;
 }
 
-export type OpenInput = { malKod: string; productName: string; barcode: string; stock: number; price: number };
+// hbSku (HBCV...): Hepsiburada ürünün kendi kodu; verilirse barkod yerine/barkodla birlikte ürünü bununla bulur.
+export type OpenInput = { malKod: string; productName: string; barcode: string; stock: number; price: number; hbSku?: string };
 
 export async function openOnHepsiburada(pool: Pool, input: OpenInput) {
   const config = getHepsiburadaConfig();
 
   if (!config) throw new Error("Hepsiburada ortam değişkenleri eksik.");
-  if (!isValidGtin(input.barcode)) throw new Error(`Barkod geçersiz (sağlama basamağı tutmuyor): ${input.barcode}. WingSM'deki barkodu kontrol edin.`);
+  const hbSku = String(input.hbSku ?? "").trim().toUpperCase();
+
+  if (hbSku && !/^HB[A-Z0-9]{6,}$/.test(hbSku)) throw new Error(`Hepsiburada SKU biçimi geçersiz: ${hbSku} (örnek: HBCV0000XXXXXX).`);
+  // Hepsiburada SKU verilmediyse barkod şart ve gerçek EAN olmalı.
+  if (!hbSku && !isValidGtin(input.barcode)) throw new Error(`Barkod geçersiz (sağlama basamağı tutmuyor): ${input.barcode}. WingSM'deki barkodu kontrol edin.`);
   if (!/^[A-Za-z0-9._-]+$/.test(input.malKod)) throw new Error("Ürün kodu boşluk ya da özel karakter içeriyor, stok kodu olarak kullanılamaz.");
   if (!Number.isInteger(input.stock) || input.stock < 0) throw new Error("Stok 0 veya daha büyük tam sayı olmalı.");
   if (!Number.isFinite(input.price) || input.price <= 0) throw new Error("Fiyat 0'dan büyük olmalı.");
@@ -69,11 +74,11 @@ export async function openOnHepsiburada(pool: Pool, input: OpenInput) {
   await ensureOpenLog(pool);
 
   const recent = await pool.query(
-    `SELECT id FROM public.hepsiburada_open_log WHERE mal_kod = $1 AND http_status BETWEEN 200 AND 299 AND created_at > now() - interval '1 day' LIMIT 1`,
+    `SELECT id FROM public.hepsiburada_open_log WHERE mal_kod = $1 AND http_status BETWEEN 200 AND 299 AND created_at > now() - interval '10 minutes' LIMIT 1`,
     [input.malKod]
   );
 
-  if (recent.rowCount) throw new Error("Bu ürün son 24 saatte zaten gönderilmiş. Sonucu durum sorgusuyla kontrol edin.");
+  if (recent.rowCount) throw new Error("Bu ürün son 10 dakika içinde zaten gönderilmiş. Önce sonucunu durum sorgusuyla kontrol edin.");
 
   // Hepsiburada merchantSku'yu büyük harfe çevirir; baştan büyük gönderiyoruz.
   const body = [
@@ -81,9 +86,12 @@ export async function openOnHepsiburada(pool: Pool, input: OpenInput) {
       merchant: config.merchantId,
       merchantSku: input.malKod.toUpperCase(),
       productName: input.productName,
-      barcode: input.barcode,
+      ...(isValidGtin(input.barcode) ? { barcode: input.barcode } : {}),
+      ...(hbSku ? { hbSku } : {}),
       stock: String(input.stock),
-      price: input.price.toFixed(2),
+      // Hepsiburada fiyatı virgülle bekler (14,50), en çok 2 hane; biçim hatalıysa ürün 0 fiyat/0 stokla açılır.
+      // Tam sayı fiyat noktasız gönderilir (her iki yorumda da doğru).
+      price: Number.isInteger(input.price) ? String(input.price) : input.price.toFixed(2).replace(".", ","),
       itemOrderID: 1,
     },
   ];
