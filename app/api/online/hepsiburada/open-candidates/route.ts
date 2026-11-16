@@ -143,6 +143,7 @@ export async function GET(request: NextRequest) {
     // Sıralama: varsayılan stoğu en çok olan önce (sıfır telefonlar aynı stokta öne gelir)
     filtered.sort((a, b) => {
       if (sort === "name") return String(a.malAd ?? "").localeCompare(String(b.malAd ?? ""), "tr");
+      if (sort === "stock_asc") return a.adet - b.adet || String(a.malAd ?? "").localeCompare(String(b.malAd ?? ""), "tr");
 
       return b.adet - a.adet || Number(b.sinif === "1el") - Number(a.sinif === "1el") || String(a.malAd ?? "").localeCompare(String(b.malAd ?? ""), "tr");
     });
