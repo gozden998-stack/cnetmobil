@@ -49,12 +49,13 @@ export async function GET(request: NextRequest) {
     return json({ success: false, env, error: "Ortam değişkeni eksik. Coolify'da GARANTILI_API_KEY tanımlayıp uygulamayı yeniden dağıtın." }, 200);
   }
 
-  const [ben, cihaz, ilan, siparis] = await Promise.all([
+  const [ben, cihaz, ilan, siparis, katalog] = await Promise.all([
     probe("/auth/ben"),
     probe("/cihaz/liste", { adet: 3 }),
     probe("/ilan/liste", { adet: 3 }),
     probe("/pazaryeri/siparis-liste", { adet: 3, ozet: 0 }),
+    probe("/katalog/tumu", { tur: 1, eslesme: 0 }),
   ]);
 
-  return json({ success: true, env, base: GARANTILI_BASE, ben, cihaz, ilan, siparis });
+  return json({ success: true, env, base: GARANTILI_BASE, ben, cihaz, ilan, siparis, katalog });
 }

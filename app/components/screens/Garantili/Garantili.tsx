@@ -6,13 +6,17 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import GarantiliOpen from "./GarantiliOpen";
+
 type Row = Record<string, any>;
-type Tab = "baglanti" | "cihaz" | "ilan" | "siparis";
+type Tab = "baglanti" | "ac" | "cihaz" | "ilan" | "siparis";
+type DataTab = Exclude<Tab, "baglanti" | "ac">;
 
 const PAGE = 50;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "baglanti", label: "Bağlantı" },
+  { id: "ac", label: "WingSM'den Aç" },
   { id: "cihaz", label: "Cihazlarım" },
   { id: "ilan", label: "İlanlar" },
   { id: "siparis", label: "Siparişler" },
@@ -44,9 +48,47 @@ function pickColumns(rows: Row[]): string[] {
   return keys.sort((a, b) => score(a) - score(b)).slice(0, 9);
 }
 
-function formatCell(value: unknown) {
+type Col = { key: string; label: string; kind?: "money" | "date" };
+
+// Canlıda görülen gerçek alan adları (Garantili cevabı)
+const COLUMNS: Record<DataTab, Col[]> = {
+  cihaz: [
+    { key: "imei", label: "IMEI" },
+    { key: "marka", label: "Marka" },
+    { key: "model", label: "Model" },
+    { key: "hafiza", label: "Hafıza" },
+    { key: "renk", label: "Renk" },
+    { key: "durum", label: "Durum" },
+    { key: "ilan_durumu", label: "İlan" },
+    { key: "takip_no", label: "Takip no" },
+    { key: "tarih", label: "Tarih", kind: "date" },
+  ],
+  ilan: [
+    { key: "imei", label: "IMEI" },
+    { key: "model", label: "Model" },
+    { key: "hafiza", label: "Hafıza" },
+    { key: "renk", label: "Renk" },
+    { key: "grade_tipi", label: "Grade" },
+    { key: "min", label: "Min. fiyat", kind: "money" },
+    { key: "ilan_durumu", label: "İlan" },
+    { key: "ilan_aktif_tarih", label: "İlan tarihi", kind: "date" },
+    { key: "siparis_no", label: "Sipariş no" },
+  ],
+  siparis: [
+    { key: "siparis_no", label: "Sipariş no" },
+    { key: "pazaryeri", label: "Pazaryeri" },
+    { key: "siparis_tarihi", label: "Sipariş tarihi", kind: "date" },
+    { key: "durum_ad", label: "Durum" },
+    { key: "total_tutar", label: "Tutar", kind: "money" },
+    { key: "son_teslim_tarihi", label: "Son teslim", kind: "date" },
+  ],
+};
+
+function formatCell(value: unknown, kind?: Col["kind"]) {
   if (value === null || value === undefined || value === "") return "-";
   if (typeof value === "boolean") return value ? "Evet" : "Hayır";
+  if (kind === "money" && Number.isFinite(Number(value))) return `${Number(value).toLocaleString("tr-TR")} ₺`;
+  if (kind === "date") return String(value).slice(0, 16).replace("T", " ");
 
   const textValue = String(value);
 
@@ -98,6 +140,8 @@ export default function Garantili() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [openRow, setOpenRow] = useState<number | null>(null);
+  // Varsayılan: yalnız satışa açık (ilandaki) cihazlar
+  const [ilanFilter, setIlanFilter] = useState("ilanda");
   const requestId = useRef(0);
 
   const testConnection = async () => {
@@ -114,7 +158,7 @@ export default function Garantili() {
     }
   };
 
-  const load = useCallback(async (kaynak: Exclude<Tab, "baglanti">, pageNumber: number, q: string) => {
+  const load = useCallback(async (kaynak: DataTab, pageNumber: number, q: string, ilanDurumu: string) => {
     const id = ++requestId.current;
 
     setBusy(true);
@@ -124,6 +168,7 @@ export default function Garantili() {
       const query = new URLSearchParams({ kaynak, sayfa: String(pageNumber), adet: String(PAGE) });
 
       if (q.trim()) query.set("ara", q.trim());
+      if (ilanDurumu && kaynak !== "siparis") query.set("ilan_durumu", ilanDurumu);
 
       const response = await fetch(`/api/online/garantili/data?${query.toString()}`, { cache: "no-store", credentials: "same-origin" });
       const payload = await response.json().catch(() => null);
@@ -149,6 +194,7 @@ export default function Garantili() {
   useEffect(() => {
     setPage(1);
     setSearch("");
+    setIlanFilter("ilanda");
     setOpenRow(null);
     setRows([]);
     setTotal(null);
@@ -159,18 +205,25 @@ export default function Garantili() {
   const lastSearch = useRef("");
 
   useEffect(() => {
-    if (tab === "baglanti") return;
+    if (tab === "baglanti" || tab === "ac") return;
 
     const searchChanged = lastSearch.current !== search;
 
     lastSearch.current = search;
 
-    const timer = setTimeout(() => void load(tab, page, search), searchChanged ? 400 : 0);
+    const timer = setTimeout(() => void load(tab, page, search, ilanFilter), searchChanged ? 400 : 0);
 
     return () => clearTimeout(timer);
-  }, [tab, page, search, load]);
+  }, [tab, page, search, ilanFilter, load]);
 
-  const columns = useMemo(() => pickColumns(rows), [rows]);
+  const columns = useMemo<Col[]>(() => {
+    if (tab === "baglanti" || tab === "ac") return [];
+
+    const fixed = COLUMNS[tab].filter((column) => rows.some((row) => row?.[column.key] !== undefined));
+
+    // Beklenen alanlar gelmiyorsa (Garantili alan adını değiştirirse) otomatik kolon seçimine dön
+    return fixed.length >= 3 ? fixed : pickColumns(rows).map((key) => ({ key, label: key.replace(/_/g, " ") }));
+  }, [rows, tab]);
   const lastPage = total ? Math.max(1, Math.ceil(total / PAGE)) : rows.length === PAGE ? page + 1 : page;
 
   return (
@@ -215,11 +268,43 @@ export default function Garantili() {
               <ProbeCard title="Cihazlar" probe={health.cihaz} />
               <ProbeCard title="İlanlar" probe={health.ilan} />
               <ProbeCard title="Siparişler" probe={health.siparis} />
+              <ProbeCard title="Katalog (marka / model / hafıza / renk)" probe={health.katalog} />
             </div>
           )}
         </div>
+      ) : tab === "ac" ? (
+        <GarantiliOpen />
       ) : (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {tab !== "siparis" && (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {(tab === "cihaz"
+                ? [
+                    { value: "ilanda", label: "İlanda (satışa açık)" },
+                    { value: "ilanda_degil", label: "İlanda değil" },
+                    { value: "satildi", label: "Satıldı" },
+                    { value: "", label: "Tümü" },
+                  ]
+                : [
+                    { value: "ilanda", label: "İlanda (satışa açık)" },
+                    { value: "ilanda_degil", label: "İlanda değil" },
+                    { value: "satilan", label: "Satılan" },
+                  ]
+              ).map((option) => (
+                <button
+                  key={option.value || "tumu"}
+                  type="button"
+                  onClick={() => {
+                    setIlanFilter(option.value);
+                    setPage(1);
+                  }}
+                  className={`rounded-full px-4 py-1.5 text-[13px] font-black transition ${ilanFilter === option.value ? "bg-violet-600 text-white" : "border border-slate-200 bg-white text-slate-600 hover:bg-slate-50"}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
           <div className="mb-3 flex flex-wrap items-center gap-3">
             <input
               value={search}
@@ -240,8 +325,8 @@ export default function Garantili() {
               <thead>
                 <tr className="border-b border-slate-200 text-[12px] font-black uppercase text-slate-500">
                   {columns.map((column) => (
-                    <th key={column} className="whitespace-nowrap px-3 py-2">
-                      {column.replace(/_/g, " ")}
+                    <th key={column.key} className="whitespace-nowrap px-3 py-2">
+                      {column.label}
                     </th>
                   ))}
                   <th className="px-3 py-2" />
@@ -259,8 +344,8 @@ export default function Garantili() {
                   <React.Fragment key={index}>
                     <tr className="text-[13px] text-slate-800">
                       {columns.map((column) => (
-                        <td key={column} className="whitespace-nowrap px-3 py-2 font-semibold">
-                          {formatCell(row[column])}
+                        <td key={column.key} className="whitespace-nowrap px-3 py-2 font-semibold">
+                          {formatCell(row[column.key], column.kind)}
                         </td>
                       ))}
                       <td className="px-3 py-2 text-right">
