@@ -108,30 +108,6 @@ try {
     console.error("[HEPSIBURADA STOK] Istek basarisiz:", error instanceof Error ? error.message : error);
   }
 
-  // Garantili: WingSM'de satilan cihazlarin Garantili ilanini kaldirma talebi (her dakika, ilan listesini tarar).
-  // Basarisiz olsa da kapatma sonucunu etkilemez.
-  try {
-    const garantili = await fetch(`${appUrl}/api/online/garantili/close-sweep`, {
-      method: "POST",
-      headers: { Accept: "application/json", Authorization: `Bearer ${secret}` },
-      cache: "no-store",
-      signal: controller.signal,
-    });
-    const garantiliData = await garantili.json().catch(() => null);
-
-    if (garantiliData && !garantiliData.skipped) {
-      console.log(
-        `[GARANTILI KAPATMA] ilanda=${garantiliData.listed ?? 0} satilmis=${garantiliData.sold ?? 0} talep=${garantiliData.requested ?? 0} ` +
-          `kilitli=${garantiliData.locked ?? 0} hata=${garantiliData.failed ?? 0} biten=${garantiliData.done ?? 0}` +
-          (garantiliData.blocked ? ` | DURDURULDU: ${garantiliData.blocked}` : "") +
-          (garantiliData.error ? ` | HATA: ${garantiliData.error}` : "") +
-          (Array.isArray(garantiliData.errors) && garantiliData.errors.length ? ` | ${garantiliData.errors.join(" | ")}` : "")
-      );
-    }
-  } catch (error) {
-    console.error("[GARANTILI KAPATMA] Istek basarisiz:", error instanceof Error ? error.message : error);
-  }
-
   if (!response.ok || data?.success !== true) {
     console.error(`[CHANNEL CLOSE CRON] Basarisiz. HTTP ${response.status}: ${data?.error || "hata listesine bakin"}`);
     process.exit(1);
