@@ -173,11 +173,36 @@ function findScore(rules: ScoreRuleForLookup[], classCode: string, karlilik: num
   return null;
 }
 
+// Yarışma (Şampiyonlar Ligi) gibi ek hesaplar için: satış satırındaki 15 haneli IMEI'ler.
+export type ImeiSaleRow = {
+  branchLabel: string;
+  saticiKod: string;
+  saticiAdi: string;
+  malAd: string;
+  tarih: string;
+  isReturn: boolean;
+  imeis: string[];
+};
+
+function extractImeis(row: any): string[] {
+  try {
+    const found = JSON.stringify(row).match(/(?<!\d)\d{15}(?!\d)/g);
+
+    return found ? Array.from(new Set(found)) : [];
+  } catch {
+    return [];
+  }
+}
+
 export async function computeAndSaveDegerPuanReport(input: {
   bastar: unknown;
   bittar: unknown;
   gecenGun?: unknown;
   ayToplamGun?: unknown;
+  // true: sonuç snapshot/history tablolarına YAZILMAZ (resmi aylık rapor bozulmasın; ör. yarışma hesabı).
+  skipSave?: boolean;
+  // true: sonuca `imeiRows` (satış satırlarındaki IMEI'ler, iadeler dahil) eklenir.
+  collectImeis?: boolean;
 }) {
     const tarih = toWingsmDate(input.bastar);
     const tarih2 = toWingsmDate(input.bittar);
@@ -266,11 +291,28 @@ export async function computeAndSaveDegerPuanReport(input: {
     const knownClassCodes = new Set(rules.map((r) => r.class_code));
 
     const taggedRows: TaggedRow[] = [];
+    const imeiRows: ImeiSaleRow[] = [];
     let excludedOutOfScopeCount = 0;
     let excludedReturnCount = 0;
 
     for (const depotResult of depotResults) {
       for (const row of depotResult.rows) {
+        if (input.collectImeis) {
+          const imeis = extractImeis(row);
+
+          if (imeis.length > 0) {
+            imeiRows.push({
+              branchLabel: depotResult.branchLabel,
+              saticiKod: String(row?.SaticiKod ?? "").trim(),
+              saticiAdi: String(row?.SaticiAdI ?? "").trim(),
+              malAd: String(row?.MalAd ?? ""),
+              tarih: String(row?.Tarih ?? ""),
+              isReturn: Number(row?.MalMiktarI ?? 0) < 0,
+              imeis,
+            });
+          }
+        }
+
         // İADE: WingSM'in kendi satış ekranında bu satırlar miktarı (-1 gibi)
         // negatif olarak gösteriyor (kullanıcının paylaştığı örnekte diğer
         // tüm alanlar dolu ama Miktar/Tutar eksi). Daha önce bu satırlar
@@ -574,35 +616,38 @@ export async function computeAndSaveDegerPuanReport(input: {
     // değil. Bu kayıt admin'in kendi cevabını ASLA bozmamalı, bu yüzden
     // ayrı try/catch'te ve sadece console.error ile başarısız olur.
     // --------------------------------------------------
-    try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS public.wingsm_deger_puan_snapshots (
-          period TEXT PRIMARY KEY,
-          payload JSONB NOT NULL,
-          computed_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        )
-      `);
+    if (!input.skipSave) {
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS public.wingsm_deger_puan_snapshots (
+            period TEXT PRIMARY KEY,
+            payload JSONB NOT NULL,
+            computed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+          )
+        `);
 
-      await pool.query(
-        `
-          INSERT INTO public.wingsm_deger_puan_snapshots (period, payload, computed_at)
-          VALUES ($1, $2, now())
-          ON CONFLICT (period) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()
-        `,
-        [period, JSON.stringify(responsePayload)]
-      );
-    } catch (snapshotError) {
-      console.error("WINGSM_DEGER_PUAN_SNAPSHOT_SAVE_ERROR:", snapshotError);
+        await pool.query(
+          `
+            INSERT INTO public.wingsm_deger_puan_snapshots (period, payload, computed_at)
+            VALUES ($1, $2, now())
+            ON CONFLICT (period) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()
+          `,
+          [period, JSON.stringify(responsePayload)]
+        );
+      } catch (snapshotError) {
+        console.error("WINGSM_DEGER_PUAN_SNAPSHOT_SAVE_ERROR:", snapshotError);
+      }
+
+      // Geçmiş günlerin sonucu: aynı tarih aralığı güncellenir, farklı aralıklar
+      // ayrı kalır — personel "dünkü rapor"a bakabilsin. Yazılamasa bile admin'in
+      // cevabı bozulmaz.
+      try {
+        await saveHistoryRow(pool, responsePayload);
+      } catch (historyError) {
+        console.error("WINGSM_DEGER_PUAN_HISTORY_SAVE_ERROR:", historyError);
+      }
     }
 
-    // Geçmiş günlerin sonucu: aynı tarih aralığı güncellenir, farklı aralıklar
-    // ayrı kalır — personel "dünkü rapor"a bakabilsin. Yazılamasa bile admin'in
-    // cevabı bozulmaz.
-    try {
-      await saveHistoryRow(pool, responsePayload);
-    } catch (historyError) {
-      console.error("WINGSM_DEGER_PUAN_HISTORY_SAVE_ERROR:", historyError);
-    }
-
-  return responsePayload;
+  // imeiRows kaydedilen (snapshot/history) payload'a GİRMEZ; sadece çağırana döner.
+  return input.collectImeis ? { ...responsePayload, imeiRows } : responsePayload;
 }

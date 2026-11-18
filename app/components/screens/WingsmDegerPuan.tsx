@@ -25,6 +25,7 @@ import * as XLSX from "xlsx";
 import WingsmDegerPuanim from "./WingsmDegerPuanim";
 import SatisIncele from "./SatisIncele";
 import PersonelGidisat from "./PersonelGidisat";
+import SampiyonlarLigi from "./SampiyonlarLigi";
 import VodafoneDegerPuan, { KANAL_STORAGE_KEY, KanalSecici, type Kanal } from "./VodafoneDegerPuan";
 import {
   magazaSatirRengi,
@@ -346,11 +347,12 @@ export default function WingsmDegerPuan() {
   // değişmiyor) / "rapor" (yeni, Aşama 3+4)
   // ==================================================
 
-  type CmrTab = "kurallar" | "hedefler" | "rapor" | "sonuc" | "satis" | "gidisat";
+  type CmrTab = "kurallar" | "hedefler" | "rapor" | "sonuc" | "satis" | "gidisat" | "yarisma";
+  type DegerAltTab = Exclude<CmrTab, "gidisat" | "yarisma">;
   // Ekran açılınca hiçbir şey seçili gelmez; önce üst menüden bölüm, sonra alt menüden sekme seçilir.
   const [activeTab, setActiveTab] = useState<CmrTab | "">("");
   // Üst menü: "Değer Puanı" (altında Kurallar/Hedefler/Rapor/Rapor Sonucu/Satış Verisi) | "Personel Gidişat".
-  const [sonDegerTab, setSonDegerTab] = useState<Exclude<CmrTab, "gidisat"> | "">("");
+  const [sonDegerTab, setSonDegerTab] = useState<DegerAltTab | "">("");
   const [degerAltAcik, setDegerAltAcik] = useState(false);
   const [gidisatAltAcik, setGidisatAltAcik] = useState(false);
 
@@ -1342,6 +1344,9 @@ export default function WingsmDegerPuan() {
     return <VodafoneDegerPuan kanalSecici={<KanalSecici kanal={kanal} onChange={setKanal} />} />;
   }
 
+  // "Personel Gidişat" ve "Şampiyonlar Ligi" üst menüde kendi başına sekmelerdir (Değer Puanı alt menüsü kapalı).
+  const ustSekmeAcik = activeTab === "gidisat" || activeTab === "yarisma";
+
   return (
     <div className="animate-in fade-in duration-500">
       <KanalSecici kanal={kanal} onChange={setKanal} />
@@ -1350,7 +1355,7 @@ export default function WingsmDegerPuan() {
         <button
           type="button"
           onClick={() => {
-            if (activeTab === "gidisat") {
+            if (ustSekmeAcik) {
               setActiveTab(sonDegerTab);
               setDegerAltAcik(true);
             } else {
@@ -1358,12 +1363,12 @@ export default function WingsmDegerPuan() {
             }
           }}
           className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
-            activeTab !== "gidisat" && (degerAltAcik || activeTab !== "")
+            !ustSekmeAcik && (degerAltAcik || activeTab !== "")
               ? "border-b-2 border-blue-600 text-blue-700"
               : "text-slate-400 hover:text-slate-600"
           }`}
         >
-          Değer Puanı {activeTab !== "gidisat" && degerAltAcik ? "▴" : "▾"}
+          Değer Puanı {!ustSekmeAcik && degerAltAcik ? "▴" : "▾"}
         </button>
         <button
           type="button"
@@ -1381,9 +1386,18 @@ export default function WingsmDegerPuan() {
         >
           Personel Gidişat {activeTab === "gidisat" && gidisatAltAcik ? "▴" : "▾"}
         </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("yarisma")}
+          className={`h-10 flex-none whitespace-nowrap rounded-t-lg px-4 text-xs font-black uppercase tracking-wide transition ${
+            activeTab === "yarisma" ? "border-b-2 border-blue-600 text-blue-700" : "text-slate-400 hover:text-slate-600"
+          }`}
+        >
+          Şampiyonlar Ligi
+        </button>
       </div>
 
-      {activeTab !== "gidisat" && degerAltAcik && (
+      {!ustSekmeAcik && degerAltAcik && (
         <div className="mb-6 flex flex-wrap items-center gap-1.5 rounded-xl bg-slate-100 p-1.5">
           {(
             [
@@ -1392,7 +1406,7 @@ export default function WingsmDegerPuan() {
               ["rapor", "Rapor"],
               ["sonuc", "Rapor Sonucu"],
               ["satis", "Satış Verisi"],
-            ] as Array<[Exclude<CmrTab, "gidisat">, string]>
+            ] as Array<[DegerAltTab, string]>
           ).map(([id, label]) => (
             <button
               key={id}
@@ -1411,7 +1425,10 @@ export default function WingsmDegerPuan() {
         </div>
       )}
 
-      {activeTab === "gidisat" && <div className="mb-3" />}
+      {ustSekmeAcik && <div className="mb-3" />}
+
+      {/* ŞAMPİYONLAR LİGİ: CMR yarışması (şimdilik sadece yönetici) */}
+      {activeTab === "yarisma" && <SampiyonlarLigi />}
 
       {/* RAPOR SONUCU: personelin gördüğü ekranın AYNISI (kayıtlı son rapor +
           Bugün / Dün / Önceki Gün / takvim ile geçmiş günler). Yönetici de aynı

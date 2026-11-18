@@ -39,6 +39,8 @@ const TARGETS = [
   { label: "CMR", path: "/api/wingsm/deger-puan-auto" },
   { label: "GIDISAT", path: "/api/wingsm/gidisat/auto" },
   { label: "VODAFONE", path: "/api/wingsm/vodafone/auto" },
+  // CMR Sampiyonlar Ligi (yarisma gunleri disinda kendiliginden hicbir sey yapmaz)
+  { label: "YARISMA", path: "/api/wingsm/yarisma/auto" },
 ];
 
 async function callEndpoint({ label, path }) {

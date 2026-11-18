@@ -2,6 +2,7 @@ import { parseNotificationPrice } from './lib/notificationPrice';
 import SirketDegerPuanOzeti from './components/screens/SirketDegerPuanOzeti';
 import VodafoneDegerPuanOzeti from './components/screens/VodafoneDegerPuanOzeti';
 import PersonelGidisatEkrani from './components/screens/PersonelGidisatEkrani';
+import SampiyonlarLigiSonuc from './components/screens/SampiyonlarLigiSonuc';
 import React, { useEffect, useRef, useState } from 'react';
 
 
@@ -331,7 +332,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // --- KONTROLLER ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
-    const [anaTab, setAnaTab] = useState<'degerpuan' | 'gidisat'>('degerpuan');
+    const [anaTab, setAnaTab] = useState<'degerpuan' | 'gidisat' | 'yarisma'>('degerpuan');
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
 
@@ -1656,11 +1657,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             {[
                                 { id: 'degerpuan', label: 'Değer Puanı' },
                                 { id: 'gidisat', label: 'Personel Gidişatı' },
+                                { id: 'yarisma', label: '🏆 Şampiyonlar Ligi' },
                             ].map((item) => (
                                 <button
                                     key={item.id}
                                     type="button"
-                                    onClick={() => setAnaTab(item.id as 'degerpuan' | 'gidisat')}
+                                    onClick={() => setAnaTab(item.id as 'degerpuan' | 'gidisat' | 'yarisma')}
                                     className={`-mb-px border-b-[3px] px-4 py-3 text-[12px] font-black uppercase tracking-wide transition ${
                                         anaTab === item.id
                                             ? 'border-blue-600 text-blue-700'
@@ -1677,6 +1679,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                                 {/* Personel Gidişatı (WingSM, her gün 12:00'da yayınlanan rapor): CMR mağazaları kendi
                                     personelini, yönetici hepsini görür (mağaza filtresi sunucuda uygulanır). */}
                                 <PersonelGidisatEkrani yonetici={Boolean(isAdmin)} />
+                            </div>
+                        ) : anaTab === 'yarisma' ? (
+                            <div className="p-3 sm:p-4">
+                                {/* CMR Şampiyonlar Ligi: tüm CMR mağazaları herkesin sıralamasını görür (sade görünüm, sunucuda süzülür). */}
+                                <SampiyonlarLigiSonuc />
                             </div>
                         ) : (
 <div className="">
