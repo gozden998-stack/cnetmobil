@@ -384,7 +384,8 @@ export function toStoreView(result: Record<string, any>) {
 // 1. mağaza müdürü 1 gram altın, 2. mağaza müdürü 2000 TL. Önkoşul: şirket toplam cihaz satışı +%15 (aynı oranla).
 // Bir satış tek sayılır (hem 2.el sınıfında hem stok cihaz olsa da 1). İade satırı bir düşer.
 
-export const MANAGER_DEVICE_CLASSES = new Set(["1el", "2el"]);
+// Kullanıcının Excel'i: "1.EL & 2.EL & 1 EL TABLET Miktar" (adet toplamı, satır sayısı değil)
+export const MANAGER_DEVICE_CLASSES = new Set(["1el", "2el", "1eltablet"]);
 
 export const MANAGER_PRIZES: Array<{ rank: number; label: string }> = [
   { rank: 1, label: "1 gram altın" },
@@ -399,7 +400,10 @@ export function countDeviceSalesByBranch(rows: ImeiSaleRow[], stockImeis: Set<st
 
     if (!isDevice) continue;
 
-    out.set(row.branchLabel, (out.get(row.branchLabel) ?? 0) + (row.isReturn ? -1 : 1));
+    // Miktar (adet) toplanır; iade satırı aynı miktarı düşer
+    const quantity = Number.isFinite(row.miktar) && row.miktar > 0 ? row.miktar : 1;
+
+    out.set(row.branchLabel, (out.get(row.branchLabel) ?? 0) + (row.isReturn ? -quantity : quantity));
   }
 
   return out;
@@ -895,7 +899,7 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
 
   const payload = {
     success: true,
-    title: "Mağaza Müdürleri Yarışması",
+    title: "Şampiyonlar Ligi Mağaza Müdürleri Yarışması",
     carpanMode: config.mudurCarpan ?? "karekok",
     baselineRange: hasBaseline ? { from: monthStart, to: baselineTo } : null,
     range: { from: config.startDate, to },

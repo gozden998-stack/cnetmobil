@@ -180,7 +180,6 @@ export default function SampiyonlarLigiSonuc({ kaynak = "yayin" }: { kaynak?: "y
           </div>
         </>
       )}
-      {data.mudur && <MudurKarti mudur={data.mudur} myBranch={data.myBranch} />}
     </div>
   );
 }
@@ -198,7 +197,7 @@ export function MudurKarti({ mudur, myBranch }: { mudur: Row; myBranch?: string 
       <div>
         <div className="text-[16px] font-black text-slate-900">🏆 {mudur?.title || "Mağaza Müdürleri Yarışması"}</div>
         <div className="text-[12px] font-semibold text-slate-500">
-          Oran = {dateTr(range?.from)} - {dateTr(range?.to)} cihaz satışı (1.el + 2.el + stok cihaz) ÷ {base ? `${dateTr(base.from)} - ${dateTr(base.to)}` : "önceki dönem"} cihaz satışı.
+          Oran = {dateTr(range?.from)} - {dateTr(range?.to)} cihaz satışı (1.el + 2.el + 1.el tablet + stok cihaz, adet) ÷ {base ? `${dateTr(base.from)} - ${dateTr(base.to)}` : "önceki dönem"} cihaz satışı.
           {mudur?.carpanMode === "yok" ? " Sıralama oranın artışına göre." : " Mağaza büyüklüğü farkı için artışa adalet çarpanı uygulanır (çarpan, mağazanın önceki dönem satışının büyüklüğüne göre); sıralama \"Puan\" sütununa göre."} En yüksek puanlı mağazanın müdürü kazanır.
           {mudur?.computedAt ? ` · Son güncelleme: ${new Date(mudur.computedAt).toLocaleString("tr-TR")}` : ""}
         </div>

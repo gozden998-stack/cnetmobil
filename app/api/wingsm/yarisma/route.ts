@@ -12,6 +12,7 @@ import { NextRequest } from "next/server";
 import { getPool, json, requireAdminSession } from "@/app/api/wingsm/score-rules/_shared";
 import { DegerPuanInputError } from "@/app/api/wingsm/_deger-puan-compute";
 
+import { hasMudurPassword, setMudurPassword, validatePassword } from "./_mudur-erisim";
 import { computeLeague, computeManagerLeague, getDegerPuanTargets, getLatestResult, getLeagueConfig, getYarismaTargets, isIsoDate, mudurLeagueId, saveLeagueConfig, saveYarismaTargets, validateTargets } from "./_yarisma";
 
 export const runtime = "nodejs";
@@ -36,6 +37,8 @@ export async function GET(request: NextRequest) {
       result: await getLatestResult(pool, config.id, "test"),
       mudur: await getLatestResult(pool, mudurLeagueId(config), "test"),
       // Yarışmaya özel kişi hedefleri + (başlangıç önerisi olarak) Değer Puan hedefleri
+      // Mağaza müdürleri sekmesi şifresi belirlenmiş mi (şifrenin kendisi/hash'i HİÇBİR cevapta dönmez)
+      mudurSifreVar: await hasMudurPassword(pool, mudurLeagueId(config)),
       targets: await getYarismaTargets(pool, config.id),
       degerPuanTargets: await getDegerPuanTargets(pool, config.countFrom.slice(0, 7)),
       published: published ? { computedAt: published.computedAt, range: published.range ?? null } : null,
@@ -91,6 +94,16 @@ export async function POST(request: NextRequest) {
       await saveLeagueConfig(pool, config);
 
       return json({ success: true, config });
+    }
+
+    if (body?.action === "mudurSifre") {
+      const checked = validatePassword(body.sifre);
+
+      if (!checked.ok) return json({ success: false, error: checked.error }, 400);
+
+      await setMudurPassword(pool, mudurLeagueId(config), checked.value);
+
+      return json({ success: true, mudurSifreVar: true });
     }
 
     if (body?.action === "hedefKaydet") {

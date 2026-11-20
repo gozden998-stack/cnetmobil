@@ -183,6 +183,7 @@ export type ImeiSaleRow = {
   isReturn: boolean;
   imeis: string[];
   malSinif: string; // normalize edilmiş sınıf kodu (ör. "1el", "2el")
+  miktar: number; // satırdaki adet (mutlak değer; iade için isReturn ayrı)
 };
 
 function extractImeis(row: any): string[] {
@@ -309,6 +310,7 @@ export async function computeAndSaveDegerPuanReport(input: {
             isReturn: Number(row?.MalMiktarI ?? 0) < 0,
             imeis: extractImeis(row),
             malSinif: rowClassCode(row),
+            miktar: Math.abs(Number(row?.MalMiktarI ?? 1)) || 1,
           });
         }
 

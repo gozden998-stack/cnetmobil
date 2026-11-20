@@ -6,6 +6,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 
 import SampiyonlarLigiSonuc, { MudurKarti } from "./SampiyonlarLigiSonuc";
+import SampiyonlarLigiMudur from "./SampiyonlarLigiMudur";
 import YarismaHedefleri from "./YarismaHedefleri";
 
 type Row = Record<string, any>;
@@ -26,6 +27,9 @@ export default function SampiyonlarLigi() {
   const [previewKaynak, setPreviewKaynak] = useState<"test" | "yayin">("test");
   const [published, setPublished] = useState<Row | null>(null);
   const [mudur, setMudur] = useState<Row | null>(null);
+  const [mudurSifreVar, setMudurSifreVar] = useState(false);
+  const [mudurSifre, setMudurSifre] = useState("");
+  const [previewTab, setPreviewTab] = useState<"kisi" | "mudur">("kisi");
 
   const load = useCallback(async () => {
     try {
@@ -38,6 +42,7 @@ export default function SampiyonlarLigi() {
       setResult(payload.result);
       setPublished(payload.published ?? null);
       setMudur(payload.mudur ?? null);
+      setMudurSifreVar(Boolean(payload.mudurSifreVar));
       setTargets(Array.isArray(payload.targets) ? payload.targets : []);
       setDegerPuanTargets(Array.isArray(payload.degerPuanTargets) ? payload.degerPuanTargets : []);
     } catch (e: any) {
@@ -90,6 +95,16 @@ export default function SampiyonlarLigi() {
     if (payload) {
       setConfig(payload.config);
       setMessage("Müdür yarışması çarpanı değişti. Sonucu görmek için Hesapla'ya bas (mağazalar yarın 12:30'daki otomatik yayında görür).");
+    }
+  };
+
+  const saveMudurSifre = async () => {
+    const payload = await post({ action: "mudurSifre", sifre: mudurSifre });
+
+    if (payload) {
+      setMudurSifre("");
+      setMudurSifreVar(true);
+      setMessage("Mağaza müdürleri sekmesi şifresi kaydedildi. Şifreyi mağazalarla sen paylaş; buradan bir daha görünmez, unutursan yenisini yazarsın.");
     }
   };
 
@@ -158,7 +173,19 @@ export default function SampiyonlarLigi() {
             ))}
           </div>
           {previewKaynak === "test" && <div className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-[12px] font-bold text-amber-800">TEST ÖNİZLEMESİ: bu sonucu mağazalar görmez.</div>}
-          <SampiyonlarLigiSonuc key={previewKaynak} kaynak={previewKaynak} />
+          <div className="flex gap-2">
+            {(
+              [
+                ["kisi", "Şampiyonlar Ligi sekmesi"],
+                ["mudur", "Mağaza Müdürleri sekmesi (şifreli)"],
+              ] as const
+            ).map(([id, label]) => (
+              <button key={id} type="button" onClick={() => setPreviewTab(id)} className={`rounded-full px-4 py-1.5 text-[12px] font-black ${previewTab === id ? "bg-violet-600 text-white" : "border border-slate-200 bg-white text-slate-600"}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {previewTab === "mudur" ? <SampiyonlarLigiMudur key={`m-${previewKaynak}`} kaynak={previewKaynak} /> : <SampiyonlarLigiSonuc key={previewKaynak} kaynak={previewKaynak} />}
         </>
       ) : view === "hedefler" ? (
         <YarismaHedefleri key={`${targets.length}-${degerPuanTargets.length}`} targets={targets} degerPuanTargets={degerPuanTargets} onSaved={() => void load()} />
@@ -195,6 +222,19 @@ export default function SampiyonlarLigi() {
             <option value="yok">Çarpan yok (ham yüzde)</option>
           </select>
         </label>
+        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5">
+          <span className="text-[13px] font-bold text-slate-700">Müdürler sekmesi şifresi:</span>
+          <input
+            value={mudurSifre}
+            onChange={(event) => setMudurSifre(event.target.value)}
+            placeholder={mudurSifreVar ? "Yeni şifre (mevcut gizli)" : "Şifre belirle"}
+            className="h-9 w-44 rounded-lg border border-slate-200 px-3 text-[13px] font-semibold outline-none focus:border-violet-400"
+          />
+          <button type="button" disabled={busy || mudurSifre.length < 4} onClick={() => void saveMudurSifre()} className="rounded-lg bg-violet-600 px-3 py-1.5 text-[12px] font-black text-white hover:bg-violet-700 disabled:opacity-40">
+            Kaydet
+          </button>
+          <span className={`text-[11px] font-black ${mudurSifreVar ? "text-emerald-600" : "text-rose-600"}`}>{mudurSifreVar ? "Şifre belirli" : "Şifre YOK (mağazalar giremez)"}</span>
+        </div>
         <div className="text-[13px] font-semibold text-slate-500">Stok cihaz bonusu: +{config?.bonusPoints ?? 125} puan / cihaz</div>
         <button type="button" disabled={busy || !config} onClick={() => void hesapla()} className="ml-auto rounded-xl bg-violet-600 px-6 py-2.5 text-[14px] font-black text-white hover:bg-violet-700 disabled:opacity-50">
           {busy ? "Hesaplanıyor..." : "Hesapla"}

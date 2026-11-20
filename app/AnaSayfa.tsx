@@ -3,6 +3,7 @@ import SirketDegerPuanOzeti from './components/screens/SirketDegerPuanOzeti';
 import VodafoneDegerPuanOzeti from './components/screens/VodafoneDegerPuanOzeti';
 import PersonelGidisatEkrani from './components/screens/PersonelGidisatEkrani';
 import SampiyonlarLigiSonuc from './components/screens/SampiyonlarLigiSonuc';
+import SampiyonlarLigiMudur from './components/screens/SampiyonlarLigiMudur';
 import React, { useEffect, useRef, useState } from 'react';
 
 
@@ -332,7 +333,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     // --- KONTROLLER ---
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
-    const [anaTab, setAnaTab] = useState<'degerpuan' | 'gidisat' | 'yarisma'>('degerpuan');
+    const [anaTab, setAnaTab] = useState<'degerpuan' | 'gidisat' | 'yarisma' | 'mudur'>('degerpuan');
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
 
@@ -1653,16 +1654,17 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 {isCmr && (
                 <section className="mb-6 grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
                     <div className="min-w-0 overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
-                        <div className="flex gap-1 border-b border-slate-100 px-3 pt-2">
+                        <div className="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 pt-2">
                             {[
                                 { id: 'degerpuan', label: 'Değer Puanı' },
                                 { id: 'gidisat', label: 'Personel Gidişatı' },
                                 { id: 'yarisma', label: '🏆 Şampiyonlar Ligi' },
+                                { id: 'mudur', label: '🏆 Şampiyonlar Ligi Mağaza Müdürleri' },
                             ].map((item) => (
                                 <button
                                     key={item.id}
                                     type="button"
-                                    onClick={() => setAnaTab(item.id as 'degerpuan' | 'gidisat' | 'yarisma')}
+                                    onClick={() => setAnaTab(item.id as 'degerpuan' | 'gidisat' | 'yarisma' | 'mudur')}
                                     className={`-mb-px border-b-[3px] px-4 py-3 text-[12px] font-black uppercase tracking-wide transition ${
                                         anaTab === item.id
                                             ? 'border-blue-600 text-blue-700'
@@ -1674,7 +1676,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             ))}
                         </div>
 
-                        {anaTab === 'gidisat' ? (
+                        {anaTab === 'mudur' ? (
+                            <div className="p-3 sm:p-4">
+                                {/* Şampiyonlar Ligi Mağaza Müdürleri: sekme herkeste açık, sıralama için şifre gerekir (sunucu doğrular). */}
+                                <SampiyonlarLigiMudur />
+                            </div>
+                        ) : anaTab === 'gidisat' ? (
                             <div className="p-3 sm:p-4">
                                 {/* Personel Gidişatı (WingSM, her gün 12:00'da yayınlanan rapor): CMR mağazaları kendi
                                     personelini, yönetici hepsini görür (mağaza filtresi sunucuda uygulanır). */}
