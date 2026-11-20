@@ -579,7 +579,7 @@ export async function getPublishedForDay(pool: Pool, id: string, gun: string) {
   return row ? { ...(row.payload as Record<string, unknown>), computedAt: row.computed_at } : null;
 }
 
-async function archivePublished(pool: Pool, id: string, payload: unknown) {
+export async function archivePublished(pool: Pool, id: string, payload: unknown) {
   await pool.query(
     `INSERT INTO public.yarisma_history (league_id, publish_date, payload, computed_at) VALUES ($1, $2::date, $3::jsonb, now())
      ON CONFLICT (league_id, publish_date) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()`,

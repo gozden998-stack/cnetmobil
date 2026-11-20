@@ -41,6 +41,8 @@ const TARGETS = [
   { label: "VODAFONE", path: "/api/wingsm/vodafone/auto" },
   // CMR Sampiyonlar Ligi (yarisma gunleri disinda kendiliginden hicbir sey yapmaz)
   { label: "YARISMA", path: "/api/wingsm/yarisma/auto" },
+  // Vodafone Sampiyonlar Ligi (12:30, yarisma gunleri disinda kendiliginden hicbir sey yapmaz)
+  { label: "VDF-YARISMA", path: "/api/wingsm/vodafone/yarisma/auto" },
 ];
 
 async function callEndpoint({ label, path }) {

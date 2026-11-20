@@ -4,6 +4,7 @@ import VodafoneDegerPuanOzeti from './components/screens/VodafoneDegerPuanOzeti'
 import PersonelGidisatEkrani from './components/screens/PersonelGidisatEkrani';
 import SampiyonlarLigiSonuc from './components/screens/SampiyonlarLigiSonuc';
 import SampiyonlarLigiMudur from './components/screens/SampiyonlarLigiMudur';
+import VodafoneYarisma from './components/screens/VodafoneYarisma';
 import React, { useEffect, useRef, useState } from 'react';
 
 
@@ -334,6 +335,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
     const [anaTab, setAnaTab] = useState<'degerpuan' | 'gidisat' | 'yarisma' | 'mudur'>('degerpuan');
+    const [vdfTab, setVdfTab] = useState<'degerpuan' | 'yarisma'>('degerpuan');
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
 
@@ -1633,19 +1635,47 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                 {isVodafone && (
                 <section className="mb-4">
                     <div className="overflow-hidden rounded-[22px] border border-slate-200/80 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.045)]">
-                        <div className="border-b border-slate-100 px-5 py-4">
-                            <h2 className="text-lg font-black tracking-tight text-[#102A56]">Şirket Değer Puan</h2>
-                            <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
-                                Vodafone Değer Puan: mağaza ve personel sıralaması
-                            </p>
+                        <div className="flex gap-1 overflow-x-auto border-b border-slate-100 px-3 pt-2">
+                            {[
+                                { id: 'degerpuan', label: 'Değer Puanı' },
+                                { id: 'yarisma', label: '🏆 Şampiyonlar Ligi' },
+                            ].map((item) => (
+                                <button
+                                    key={item.id}
+                                    type="button"
+                                    onClick={() => setVdfTab(item.id as 'degerpuan' | 'yarisma')}
+                                    className={`-mb-px border-b-[3px] px-4 py-3 text-[12px] font-black uppercase tracking-wide transition ${
+                                        vdfTab === item.id
+                                            ? 'border-blue-600 text-blue-700'
+                                            : 'border-transparent text-slate-400 hover:text-slate-600'
+                                    }`}
+                                >
+                                    {item.label}
+                                </button>
+                            ))}
                         </div>
 
-                        <VodafoneDegerPuanOzeti
-                            onTumunuGor={() => {
-                                try { window.sessionStorage.setItem('cnet_deger_puan_kanal', 'vodafone'); } catch { /* depolama kapalı */ }
-                                setAppMode('wingsm_deger_puan');
-                            }}
-                        />
+                        {vdfTab === 'yarisma' ? (
+                            <div className="p-3 sm:p-4">
+                                <VodafoneYarisma />
+                            </div>
+                        ) : (
+                            <>
+                                <div className="border-b border-slate-100 px-5 py-4">
+                                    <h2 className="text-lg font-black tracking-tight text-[#102A56]">Şirket Değer Puan</h2>
+                                    <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+                                        Vodafone Değer Puan: mağaza ve personel sıralaması
+                                    </p>
+                                </div>
+
+                                <VodafoneDegerPuanOzeti
+                                    onTumunuGor={() => {
+                                        try { window.sessionStorage.setItem('cnet_deger_puan_kanal', 'vodafone'); } catch { /* depolama kapalı */ }
+                                        setAppMode('wingsm_deger_puan');
+                                    }}
+                                />
+                            </>
+                        )}
                     </div>
                 </section>
                 )}
