@@ -84,8 +84,8 @@ function tokenSecret() {
 }
 
 // Şifre doğru girilince verilen imzalı, süreli anahtar
-export function signMudurToken(leagueId: string, nowMs = Date.now()): { token: string; expiresAt: number } {
-  const expiresAt = Math.floor(nowMs / 1000) + TOKEN_TTL_SECONDS;
+export function signMudurToken(leagueId: string, nowMs = Date.now(), ttlSeconds = TOKEN_TTL_SECONDS): { token: string; expiresAt: number } {
+  const expiresAt = Math.floor(nowMs / 1000) + ttlSeconds;
   const encoded = Buffer.from(JSON.stringify({ t: "mudur", l: leagueId, exp: expiresAt })).toString("base64url");
   const signature = crypto.createHmac("sha256", tokenSecret()).update(encoded).digest("base64url");
 
@@ -106,7 +106,12 @@ export function verifyMudurToken(token: string | null | undefined, leagueId: str
 
     const payload = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
 
-    return payload?.t === "mudur" && payload?.l === leagueId && Number(payload?.exp) > Math.floor(nowMs / 1000);
+    const nowSec = Math.floor(nowMs / 1000);
+    const exp = Number(payload?.exp);
+
+    // Süresi dolmamış OLSA BİLE, 20 saniyeden uzun ömürlü anahtar KABUL EDİLMEZ: eski sürümde (12 saatlik) verilmiş anahtarlar
+    // deploy sonrası tarayıcıda kalmış olabilir; bunlar anında geçersizdir.
+    return payload?.t === "mudur" && payload?.l === leagueId && exp > nowSec && exp - nowSec <= TOKEN_TTL_SECONDS + 2;
   } catch {
     return false;
   }

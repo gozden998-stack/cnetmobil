@@ -19,7 +19,10 @@ function readToken(): string {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
 
-    return parsed && Number(parsed.expiresAt) > Date.now() / 1000 ? String(parsed.token) : "";
+    const left = parsed ? Number(parsed.expiresAt) - Date.now() / 1000 : 0;
+
+    // Yalnız 20 saniye içinde bitecek anahtar geçerlidir (eski 12 saatlik anahtarlar atılır)
+    return parsed && left > 0 && left <= 22 ? String(parsed.token) : "";
   } catch {
     return "";
   }
@@ -31,7 +34,10 @@ function readExpiryMs(): number {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
 
-    return parsed ? Number(parsed.expiresAt) * 1000 : 0;
+    const ms = parsed ? Number(parsed.expiresAt) * 1000 : 0;
+
+    // Eski/bozuk (20 saniyeden uzun) anahtar: süre dolmuş say
+    return ms - Date.now() > 22_000 ? 0 : ms;
   } catch {
     return 0;
   }
