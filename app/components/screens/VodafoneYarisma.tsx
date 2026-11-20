@@ -6,6 +6,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 
+import YarismaHedefleri from "./YarismaHedefleri";
 import { DayPicker, dayPickLabel, dayPickToGun, formatIsoDate, istanbulToday, type DayPick } from "./degerPuanGunSecici";
 
 type Row = Record<string, any>;
@@ -79,7 +80,7 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
           )}
         </div>
         <div className="mt-2 text-[12px] font-semibold text-slate-500">
-          Puanlar: Gross {fmt(points.gross, 1)} · Baz {fmt(points.baz, 1)} · Tekil cihaz {fmt(points.tekil, 1)} · Samsung tekil {fmt(points.samsung, 1)} · Samsung premium tekil {fmt(points.premium, 1)}. Sıralama, mağaza çarpanıyla çarpılmış toplam puana göredir. 1. ve 2. farklı mağazalardan, ilk 5 ödül en az 3 farklı mağazadan olmalıdır; kural bozulursa ödül sıradaki uygun kişiye kayar.
+          Puanlar: Gross {fmt(points.gross, 1)} · Baz {fmt(points.baz, 1)} · Tekil cihaz {fmt(points.tekil, 1)} · Samsung tekil {fmt(points.samsung, 1)} · Samsung premium tekil {fmt(points.premium, 1)}. {config.siralama === "hedef" ? "Sıralama, mağaza çarpanıyla çarpılmış puanın kişi hedefine oranına (hedef %) göredir; hedefi girilmeyen kişi sıralamaya girmez." : "Sıralama, mağaza çarpanıyla çarpılmış toplam puana göredir."} 1. ve 2. farklı mağazalardan, ilk 5 ödül en az 3 farklı mağazadan olmalıdır; kural bozulursa ödül sıradaki uygun kişiye kayar.
         </div>
         {Object.keys(carpanlar).length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black">
@@ -151,6 +152,7 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
                   <th className="px-3 py-2 text-right">Ham</th>
                   <th className="px-3 py-2 text-right">Çarpan</th>
                   <th className="px-3 py-2 text-right">Puan</th>
+                  {config.siralama === "hedef" && <th className="px-3 py-2 text-right">Hedef %</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -173,6 +175,7 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
                       <td className="px-3 py-2 text-right font-semibold">{fmt(person.ham, 1)}</td>
                       <td className="px-3 py-2 text-right font-semibold">x{fmt(person.carpan, 2)}</td>
                       <td className="px-3 py-2 text-right font-black">{fmt(person.puan, 1)}</td>
+                      {config.siralama === "hedef" && <td className="px-3 py-2 text-right font-black">{person.yuzde === null || person.yuzde === undefined ? "-" : `%${fmt(person.yuzde, 1)}`}</td>}
                     </tr>
                   );
                 })}
@@ -198,6 +201,16 @@ function VodafoneYarismaYonetim() {
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  const setSiralama = async (siralama: "hedef" | "puan") => {
+    try {
+      await post({ action: "ayar", siralama });
+      setMessage({ type: "ok", text: siralama === "hedef" ? "Sıralama: hedef yüzdesine göre. Bir sonraki hesaplamada geçerli olur." : "Sıralama: çarpanlı toplam puana göre. Bir sonraki hesaplamada geçerli olur." });
+      await loadAdmin();
+    } catch (e: any) {
+      setMessage({ type: "err", text: e?.message || "Ayar kaydedilemedi." });
+    }
+  };
 
   const loadAdmin = useCallback(async () => {
     try {
@@ -300,6 +313,37 @@ function VodafoneYarismaYonetim() {
         </div>
         {message && (
           <div className={`mt-3 rounded-lg border px-3 py-2 text-[12px] font-bold ${message.type === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-red-200 bg-red-50 text-red-700"}`}>{message.text}</div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="text-[14px] font-black text-slate-900">Sıralama ölçütü</div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {([
+            ["hedef", "Hedef yüzdesine göre (çarpanlı puan ÷ kişi hedefi)"],
+            ["puan", "Çarpanlı toplam puana göre"],
+          ] as Array<["hedef" | "puan", string]>).map(([id, label]) => (
+            <button key={id} type="button" disabled={busy} onClick={() => void setSiralama(id)} className={`h-9 rounded-lg px-4 text-[12px] font-black ${(admin?.config?.siralama ?? "hedef") === id ? "bg-blue-600 text-white" : "border border-slate-200 text-slate-600 hover:bg-slate-50"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] font-semibold text-slate-400">Hedef yüzdesine göre seçiliyken hedef listesi boşsa sıralama otomatik olarak puana göre yapılır. Hedefi girilmeyen kişi hedef sıralamasına girmez.</p>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mb-2 text-[14px] font-black text-slate-900">Kişi hedefleri (elle girilir)</div>
+        {admin && (
+          <YarismaHedefleri
+            key={`${(admin.targets ?? []).length}-${(admin.degerPuanTargets ?? []).length}`}
+            targets={admin.targets ?? []}
+            degerPuanTargets={admin.degerPuanTargets ?? []}
+            stores={stores}
+            endpoint="/api/wingsm/vodafone/yarisma"
+            kaynakAdi="Vodafone Değer Puan"
+            onSaved={() => void loadAdmin()}
+            aciklama={<>Burada yazdığın hedefler <b>sadece Vodafone Şampiyonlar Ligi</b> içindir (Değer Puan hedefleri değişmez). Kişi adı WingSM&apos;deki satıcı adıyla <b>birebir aynı</b> olmalı (Türkçe karakterler dahil); emin olmak için "Vodafone Değer Puan hedeflerinden doldur" ile başla. Hedef = o kişinin yarışma boyunca ulaşması beklenen <b>çarpanlı puan</b>.</>}
+          />
         )}
       </div>
 

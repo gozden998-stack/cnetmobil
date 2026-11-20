@@ -20,8 +20,11 @@ function parseNumber(value: string): number {
   return Number(normalized);
 }
 
-function guessStore(text: string): string {
+function guessStore(text: string, stores: string[]): string {
   const upper = text.toLocaleUpperCase("tr-TR");
+
+  // CMR dışındaki kanallarda (Vodafone) mağaza etiketi doğrudan eşleşir
+  if (!stores.includes("CMR MERKEZ")) return upper ? stores.find((store) => upper.includes(store.toLocaleUpperCase("tr-TR"))) ?? "" : "";
 
   if (upper.includes("MERKEZ") || upper.includes("MEYDAN")) return "CMR MERKEZ";
   if (upper.includes("CADDE")) return "CMR CADDE";
@@ -31,7 +34,23 @@ function guessStore(text: string): string {
   return "";
 }
 
-export default function YarismaHedefleri({ targets, degerPuanTargets, onSaved }: { targets: Row[]; degerPuanTargets: Row[]; onSaved: () => void }) {
+export default function YarismaHedefleri({
+  targets,
+  degerPuanTargets,
+  onSaved,
+  stores = STORES,
+  endpoint = "/api/wingsm/yarisma",
+  kaynakAdi = "Değer Puan",
+  aciklama,
+}: {
+  targets: Row[];
+  degerPuanTargets: Row[];
+  onSaved: () => void;
+  stores?: string[];
+  endpoint?: string;
+  kaynakAdi?: string;
+  aciklama?: React.ReactNode;
+}) {
   const [lines, setLines] = useState<Line[]>(() => targets.map(toLine));
   const [paste, setPaste] = useState("");
   const [busy, setBusy] = useState(false);
@@ -69,7 +88,7 @@ export default function YarismaHedefleri({ targets, degerPuanTargets, onSaved }:
 
       const hedefText = cols[cols.length - 1];
       const adi = cols[0];
-      const magaza = cols.length >= 3 ? guessStore(cols[1]) : guessStore("");
+      const magaza = cols.length >= 3 ? guessStore(cols[1], stores) : guessStore("", stores);
 
       if (!adi || !Number.isFinite(parseNumber(hedefText))) {
         problems.push(text);
@@ -102,7 +121,7 @@ export default function YarismaHedefleri({ targets, degerPuanTargets, onSaved }:
     setMessage("");
 
     try {
-      const response = await fetch("/api/wingsm/yarisma", {
+      const response = await fetch(endpoint, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -130,13 +149,15 @@ export default function YarismaHedefleri({ targets, degerPuanTargets, onSaved }:
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px] font-bold leading-5 text-amber-800">
+        {aciklama ?? (<>
         Burada yazdığın hedefler <b>sadece Şampiyonlar Ligi</b> içindir (Değer Puan hedefleri değişmez). Liste doluysa yarışma <b>yalnız bu hedefleri</b> kullanır: listede olmayan kişi sıralamaya girmez. Liste boşsa Değer Puan hedefleri kullanılır.
         Kişi adı WingSM&apos;deki satıcı adıyla <b>birebir aynı</b> olmalı (Türkçe karakterler dahil), yoksa satışları eşleşmez; emin olmak için &quot;Değer Puan hedeflerinden doldur&quot; ile başla. Mağaza müdürleri de sıralamaya girer.
+        </>)}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <button type="button" onClick={fillFromDegerPuan} disabled={busy || degerPuanTargets.length === 0} className="rounded-xl border border-slate-200 px-4 py-2 text-[13px] font-black text-slate-700 hover:bg-slate-50 disabled:opacity-40">
-          Değer Puan hedeflerinden doldur ({degerPuanTargets.length} kişi)
+          {kaynakAdi} hedeflerinden doldur ({degerPuanTargets.length} kişi)
         </button>
         <button
           type="button"
@@ -182,7 +203,7 @@ export default function YarismaHedefleri({ targets, degerPuanTargets, onSaved }:
                 <td className="px-3 py-1.5">
                   <select value={line.magaza} onChange={(event) => update(index, { magaza: event.target.value })} className={`h-10 w-full rounded-lg border px-2 text-[13px] font-semibold outline-none focus:border-violet-400 ${line.magaza ? "border-slate-200" : "border-amber-300 bg-amber-50"}`}>
                     <option value="">Mağaza seç</option>
-                    {STORES.map((store) => (
+                    {stores.map((store) => (
                       <option key={store} value={store}>
                         {store}
                       </option>

@@ -12,7 +12,8 @@
 //    (Tekil kalemleri BİRBİRİNİ DIŞLAR: premium -> 1, diğer Samsung -> 1,5, Samsung olmayan -> 2,5.)
 //  - ÇARPAN: mağaza bazlı, yönetici elle girer (son 3 aylık Değer Puan oranı vb. hesabı yöneticinin; sistem hesaplamaz).
 //    Kişinin puanı = Σ (mağazadaki ham puanı × o mağazanın çarpanı). Girilmeyen mağazanın çarpanı 1 sayılır (uyarı gösterilir).
-//  - Sıralama: çarpanlı toplam puan (hedef yok).
+//  - Sıralama: ayar "hedef" (varsayılan) ve kişi hedefleri girilmişse HEDEF YÜZDESİ (çarpanlı puan ÷ kişi hedefi; hedefi olmayan sıralamaya girmez);
+//    ayar "puan" ya da hedef listesi boşsa çarpanlı toplam puan. Hedefler yönetici ekranından elle girilir (yarisma_targets, lig kimliğiyle).
 //  - Ödüller: 1. 1 gr altın +5 bireysel puan, 2. 1/2 gr altın +3, 3. 1/4 gr altın +1, 4. 500 TL, 5. 250 TL.
 //  - Önkoşullar: 1. ve 2. FARKLI mağazadan olmalı; ilk 5 ödül en az 3 FARKLI mağazaya gitmeli. Kural bozuluyorsa ödül kayar
 //    (2. ödül, 1.'den sonra gelen ilk farklı mağazadaki kişiye; 3 mağaza dolmadıysa 5. ödül, sıralamada kalan en iyi
@@ -25,8 +26,8 @@
 import type { Pool } from "pg";
 
 import { toWingsmDate } from "../../_deger-puan-compute";
-import { personnelIdentityKey } from "../../_deger-puan-personnel";
-import { addDays, archivePublished, ensureYarismaTables, todayInTurkey } from "../../yarisma/_yarisma";
+import { normalizeName, personnelIdentityKey } from "../../_deger-puan-personnel";
+import { addDays, archivePublished, ensureYarismaTables, getYarismaTargets, todayInTurkey, type YarismaTarget } from "../../yarisma/_yarisma";
 import { VODAFONE_DEPOTS, fetchDepotLists, normalizeClass } from "../_vodafone";
 
 export type VdfPoints = { gross: number; baz: number; tekil: number; samsung: number; premium: number };
@@ -41,6 +42,7 @@ export type VdfLeagueConfig = {
   points: VdfPoints;
   prizes: Array<{ rank: number; label: string }>;
   carpan: Record<string, number>; // mağaza etiketi -> çarpan (yönetici girer)
+  siralama: "hedef" | "puan"; // "hedef": çarpanlı puan ÷ kişi hedefi (hedef listesi doluysa); "puan": çarpanlı toplam puan
 };
 
 export const VDF_DEFAULT_LEAGUE: VdfLeagueConfig = {
@@ -59,6 +61,7 @@ export const VDF_DEFAULT_LEAGUE: VdfLeagueConfig = {
     { rank: 5, label: "250 TL" },
   ],
   carpan: {},
+  siralama: "hedef",
 };
 
 // ------------------------------------------------------------------
@@ -118,6 +121,8 @@ export type VdfPerson = {
   puan: number; // çarpanlı toplam (sıralama ölçütü)
   carpan: number; // etkin çarpan (puan ÷ ham)
   magazalar: Array<{ branchLabel: string; ham: number; carpan: number }>;
+  hedef: number | null; // yönetici girdiği kişi hedefi
+  yuzde: number | null; // çarpanlı puan ÷ hedef × 100
   siralama: number | null;
 };
 
@@ -140,7 +145,7 @@ function qtyOf(row: Record<string, unknown>): number {
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
-export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoints; carpan: Record<string, number> }): { standing: VdfPerson[]; diagnostics: VdfDiagnostics; carpanEksik: string[] } {
+export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoints; carpan: Record<string, number>; targets?: YarismaTarget[]; siralama?: "hedef" | "puan" }): { standing: VdfPerson[]; diagnostics: VdfDiagnostics; carpanEksik: string[]; siralamaModu: "hedef" | "puan" } {
   type Agg = { saticiAdi: string; saticiKod: string; perBranch: Map<string, Record<Kalem, number>> };
 
   const people = new Map<string, Agg>();
@@ -231,11 +236,38 @@ export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoint
       puan: round2(puan),
       carpan: ham > 0 ? round2(puan / ham) : 1,
       magazalar,
+      hedef: null,
+      yuzde: null,
       siralama: null,
     };
   });
 
-  const ranked = standing.filter((person) => person.puan > 0).sort((a, b) => b.puan - a.puan || b.ham - a.ham || a.saticiAdi.localeCompare(b.saticiAdi, "tr-TR"));
+  // Kişi hedefleri (elle girilir): ad WingSM satıcı adıyla eşleşir. Hedefi olup satışı olmayan kişi 0 puanla listeye girer.
+  const targets = input.targets ?? [];
+  const siralamaModu: "hedef" | "puan" = (input.siralama ?? "hedef") === "hedef" && targets.length > 0 ? "hedef" : "puan";
+  const targetByName = new Map(targets.map((target) => [normalizeName(target.saticiAdi), target]));
+  const known = new Set(standing.map((person) => normalizeName(person.saticiAdi)));
+
+  for (const target of targets) {
+    if (!known.has(normalizeName(target.saticiAdi))) {
+      standing.push({ saticiAdi: target.saticiAdi, saticiKod: "", branchLabel: target.branchLabel, gross: 0, baz: 0, tekil: 0, samsung: 0, premium: 0, ham: 0, puan: 0, carpan: 1, magazalar: [], hedef: null, yuzde: null, siralama: null });
+    }
+  }
+
+  for (const person of standing) {
+    const target = targetByName.get(normalizeName(person.saticiAdi));
+
+    if (!target) continue;
+
+    person.branchLabel = target.branchLabel || person.branchLabel;
+    person.hedef = target.hedef > 0 ? target.hedef : null;
+    person.yuzde = person.hedef ? round2((person.puan / person.hedef) * 100) : null;
+  }
+
+  const ranked =
+    siralamaModu === "hedef"
+      ? standing.filter((person) => person.yuzde !== null).sort((a, b) => (b.yuzde ?? 0) - (a.yuzde ?? 0) || b.puan - a.puan || a.saticiAdi.localeCompare(b.saticiAdi, "tr-TR"))
+      : standing.filter((person) => person.puan > 0).sort((a, b) => b.puan - a.puan || b.ham - a.ham || a.saticiAdi.localeCompare(b.saticiAdi, "tr-TR"));
 
   ranked.forEach((person, index) => {
     person.siralama = index + 1;
@@ -251,7 +283,7 @@ export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoint
 
   const carpanEksik = input.sales.map((depot) => depot.branchLabel).filter((label) => !(Number(input.carpan[label]) > 0));
 
-  return { standing, diagnostics, carpanEksik };
+  return { standing, diagnostics, carpanEksik, siralamaModu };
 }
 
 export type VdfPrizeResult = { rank: number; label: string; winner: string | null; siralama: number | null; branchLabel: string | null; note: string | null };
@@ -349,7 +381,7 @@ export function toVdfStoreView(result: Record<string, any>) {
   return {
     success: true,
     hasResult: true,
-    config: { title: result.config?.title, startDate: result.config?.startDate, endDate: result.config?.endDate, points: result.config?.points },
+    config: { title: result.config?.title, startDate: result.config?.startDate, endDate: result.config?.endDate, points: result.config?.points, siralama: result.siralamaModu ?? "puan" },
     range: result.range,
     computedAt: result.computedAt,
     prizes: result.prizes,
@@ -368,6 +400,7 @@ export function toVdfStoreView(result: Record<string, any>) {
         ham: person.ham,
         carpan: person.carpan,
         puan: person.puan,
+        yuzde: person.yuzde,
       })),
   };
 }
@@ -389,6 +422,34 @@ export function vdfIsAutoRunDay(todayIso: string, config: Pick<VdfLeagueConfig, 
 // ------------------------------------------------------------------
 // AYAR + HESAP
 // ------------------------------------------------------------------
+
+// Kişi hedefleri doğrulaması (CMR'dekiyle aynı kurallar; mağaza = 4 Vodafone mağazasından biri)
+export function validateVdfTargets(raw: unknown): { ok: true; rows: YarismaTarget[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw)) return { ok: false, error: "Hedef listesi geçersiz." };
+  if (raw.length > 300) return { ok: false, error: "En fazla 300 kişi girilebilir." };
+
+  const seen = new Set<string>();
+  const rows: YarismaTarget[] = [];
+
+  for (const item of raw as any[]) {
+    const saticiAdi = String(item?.saticiAdi ?? "").trim().replace(/\s+/g, " ");
+    const branch = VODAFONE_DEPOTS.find((depot) => normalizeName(depot.branchLabel) === normalizeName(String(item?.branchLabel ?? "")))?.branchLabel;
+    const hedef = Number(item?.hedef);
+
+    if (!saticiAdi || saticiAdi.length > 100) return { ok: false, error: "Her satırda kişi adı olmalı (en fazla 100 karakter)." };
+    if (!branch) return { ok: false, error: `"${saticiAdi}" için mağaza seçilmeli (${VODAFONE_DEPOTS.map((depot) => depot.branchLabel).join(", ")}).` };
+    if (!Number.isFinite(hedef) || hedef < 0 || hedef > 1_000_000) return { ok: false, error: `"${saticiAdi}" için hedef 0 ile 1.000.000 arasında bir sayı olmalı.` };
+
+    const key = normalizeName(saticiAdi);
+
+    if (seen.has(key)) return { ok: false, error: `"${saticiAdi}" listede birden fazla kez var.` };
+
+    seen.add(key);
+    rows.push({ saticiAdi, branchLabel: branch, hedef });
+  }
+
+  return { ok: true, rows };
+}
 
 export function sanitizeCarpan(raw: unknown): { ok: true; value: Record<string, number> } | { ok: false; error: string } {
   const data = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
@@ -422,7 +483,7 @@ export async function getVdfConfig(pool: Pool): Promise<VdfLeagueConfig> {
 
   const stored = row.config as Partial<VdfLeagueConfig>;
 
-  return { ...VDF_DEFAULT_LEAGUE, ...stored, points: { ...VDF_DEFAULT_LEAGUE.points, ...(stored.points ?? {}) }, carpan: stored.carpan ?? {} };
+  return { ...VDF_DEFAULT_LEAGUE, ...stored, siralama: stored.siralama === "puan" ? "puan" : "hedef", points: { ...VDF_DEFAULT_LEAGUE.points, ...(stored.points ?? {}) }, carpan: stored.carpan ?? {} };
 }
 
 export async function saveVdfConfig(pool: Pool, config: VdfLeagueConfig) {
@@ -463,7 +524,9 @@ export async function computeVdfLeague(pool: Pool, config: VdfLeagueConfig, kind
     })
   );
 
-  const { standing, diagnostics, carpanEksik } = buildVdfStanding({ sales, points: config.points, carpan: config.carpan });
+  // Yarışmaya özel kişi hedefleri (yönetici elle girer; boşsa sıralama puana göre)
+  const targets = await getYarismaTargets(pool, config.id);
+  const { standing, diagnostics, carpanEksik, siralamaModu } = buildVdfStanding({ sales, points: config.points, carpan: config.carpan, targets, siralama: config.siralama });
   const prizes = assignVdfPrizes(standing, config.prizes);
 
   const payload = {
@@ -472,6 +535,8 @@ export async function computeVdfLeague(pool: Pool, config: VdfLeagueConfig, kind
     range: { from: config.countFrom, to },
     standing,
     prizes,
+    siralamaModu,
+    hedefSayisi: targets.length,
     carpanListesi: Object.fromEntries(VODAFONE_DEPOTS.map((depot) => [depot.branchLabel, Number(config.carpan[depot.branchLabel]) > 0 ? Number(config.carpan[depot.branchLabel]) : 1])),
     carpanEksik,
     diagnostics,
