@@ -220,20 +220,7 @@ export default function SampiyonlarLigi() {
             {config && monthStart !== config.startDate && <option value={monthStart}>{dateTr(monthStart)} (ay başı)</option>}
           </select>
         </label>
-        <label className="flex items-center gap-2 text-[13px] font-bold text-slate-700">
-          Müdür yarışması çarpanı:
-          <select
-            value={config?.mudurCarpan || "karekok"}
-            disabled={busy || !config}
-            onChange={(event) => void changeCarpan(event.target.value)}
-            className="h-10 rounded-lg border border-slate-200 px-3 text-[13px] font-semibold outline-none focus:border-violet-400"
-          >
-            <option value="karekok">Karekök (önerilen)</option>
-            <option value="oransal">Tam orantılı (mutlak artış)</option>
-            <option value="yok">Çarpan yok (ham yüzde)</option>
-          </select>
-        </label>
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5">
+                <div className="flex flex-wrap items-center gap-2 rounded-lg border border-slate-200 px-3 py-1.5">
           <span className="text-[13px] font-bold text-slate-700">Müdürler sekmesi şifresi:</span>
           <input
             value={mudurSifre}

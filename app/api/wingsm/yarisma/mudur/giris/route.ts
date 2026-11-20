@@ -1,7 +1,7 @@
 // app/api/wingsm/yarisma/mudur/giris/route.ts
 //
 // CNETMOBIL - Mağaza Müdürleri yarışması: ŞİFRE GİRİŞİ
-//   POST { sifre } -> doğruysa 12 saatlik imzalı anahtar (token) döner; ekran bunu başlıkta (x-mudur-token) gönderir.
+//   POST { sifre } -> doğruysa 20 saniyelik imzalı anahtar (token) döner; ekran bunu başlıkta (x-mudur-token) gönderir.
 //   CMR mağaza girişleri ve yönetici çağırabilir (Vodafone vb. 403). Deneme sınırı: 10 dakikada 10 deneme.
 //   Şifreyi yönetici Şampiyonlar Ligi ekranından belirler.
 

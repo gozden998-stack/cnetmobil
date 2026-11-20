@@ -198,7 +198,7 @@ export function MudurKarti({ mudur, myBranch }: { mudur: Row; myBranch?: string 
         <div className="text-[16px] font-black text-slate-900">🏆 {mudur?.title || "Mağaza Müdürleri Yarışması"}</div>
         <div className="text-[12px] font-semibold text-slate-500">
           Oran = {dateTr(range?.from)} - {dateTr(range?.to)} cihaz satışı (1.el + 2.el + 1.el tablet + stok cihaz, adet) ÷ {base ? `${dateTr(base.from)} - ${dateTr(base.to)}` : "önceki dönem"} cihaz satışı.
-          {mudur?.carpanMode === "yok" ? " Sıralama oranın artışına göre." : " Mağaza büyüklüğü farkı için artışa adalet çarpanı uygulanır (çarpan, mağazanın önceki dönem satışının büyüklüğüne göre); sıralama \"Puan\" sütununa göre."} En yüksek puanlı mağazanın müdürü kazanır.
+          {mudur?.carpanMode === "yok" || !mudur?.carpanMode ? " Oranı en yüksek mağazanın müdürü kazanır." : " Mağaza büyüklüğü farkı için artışa adalet çarpanı uygulanır; sıralama \"Puan\" sütununa göre. En yüksek puanlı mağazanın müdürü kazanır."}
           {mudur?.computedAt ? ` · Son güncelleme: ${new Date(mudur.computedAt).toLocaleString("tr-TR")}` : ""}
         </div>
       </div>

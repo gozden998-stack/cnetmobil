@@ -4,14 +4,15 @@
 //
 // Sekme tüm CMR girişlerinde görünür ama sıralamayı görmek için yöneticinin belirlediği şifre girilmelidir.
 //  - Şifre yalnız HASH olarak (scrypt + tuz) ayrı tabloda tutulur; config'e ya da herhangi bir cevaba girmez.
-//  - Doğru şifre girilince kısa ömürlü (12 saat) imzalı bir anahtar (token) verilir; veri uçları bunu ister.
+//  - Doğru şifre girilince çok kısa ömürlü (20 saniye) imzalı bir anahtar (token) verilir; veri uçları bunu ister.
 //    Yanlış/eksik anahtarla sıralama sunucudan HİÇ çıkmaz.
 // Yönetici şifresiz görür. Bu dosya "_" ile başladığı için Next.js tarafından route sayılmaz.
 
 import crypto from "crypto";
 import type { Pool } from "pg";
 
-const TOKEN_TTL_SECONDS = 12 * 60 * 60;
+// Şifre girildikten sonra sıralama YALNIZ 20 saniye görünür (kullanıcı kararı); sonra anahtar geçersiz olur, yeniden şifre gerekir.
+const TOKEN_TTL_SECONDS = 20;
 
 let ready = false;
 

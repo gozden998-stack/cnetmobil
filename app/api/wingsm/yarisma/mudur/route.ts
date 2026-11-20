@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
     return json({
       success: true,
       locked: false,
+      admin: isAdmin,
       config: info,
       myBranch,
       kaynak,

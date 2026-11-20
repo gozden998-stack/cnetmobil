@@ -2,6 +2,7 @@
 
 // CNETMOBIL - "Şampiyonlar Ligi Mağaza Müdürleri Yarışması" sekmesi (ana sayfada, tüm CMR girişlerinde görünür)
 // Sıralamayı görmek için yöneticinin belirlediği ŞİFRE girilir (sunucu doğrular; şifresiz hiçbir veri gelmez).
+// Şifre girildikten 20 SANİYE sonra ekran kendiliğinden yeniden KİLİTLENİR (sunucudaki anahtar da 20 sn'de geçersiz olur).
 // Her gün 12:30'da yayınlanır; yeni güne geçince "Rapor bekleniyor"; GÜN SEÇİCİ ile geçmiş günler; ayın 28'inde yayın durur.
 
 import React, { useCallback, useEffect, useState } from "react";
@@ -21,6 +22,18 @@ function readToken(): string {
     return parsed && Number(parsed.expiresAt) > Date.now() / 1000 ? String(parsed.token) : "";
   } catch {
     return "";
+  }
+}
+
+// Saklanan anahtarın bitiş zamanı (ms); yoksa 0
+function readExpiryMs(): number {
+  try {
+    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : null;
+
+    return parsed ? Number(parsed.expiresAt) * 1000 : 0;
+  } catch {
+    return 0;
   }
 }
 
@@ -44,6 +57,7 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [loginError, setLoginError] = useState("");
+  const [lockLeft, setLockLeft] = useState<number | null>(null); // kilitlenmeye kalan saniye (yönetici hariç)
 
   const load = useCallback(async () => {
     try {
@@ -60,7 +74,10 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
       if (!payload?.success) throw new Error(payload?.error || `HTTP ${response.status}`);
 
       // Süresi dolmuş/geçersiz anahtar sunucuda "locked" döner: saklanan anahtar silinir
-      if (payload.locked) writeToken("", 0);
+      if (payload.locked) {
+        writeToken("", 0);
+        setLockLeft(null);
+      }
 
       setData(payload);
       setError("");
@@ -70,6 +87,35 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
       setLoading(false);
     }
   }, [kaynak, pick]);
+
+  // 20 SANİYE GERİ SAYIM: süre dolunca ekran kilitlenir, veri ve anahtar silinir (yönetici ve test önizlemesi hariç)
+  useEffect(() => {
+    if (!data || data.locked || data.admin || kaynak === "test") {
+      setLockLeft(null);
+
+      return;
+    }
+
+    const tick = () => {
+      const left = Math.ceil((readExpiryMs() - Date.now()) / 1000);
+
+      if (left <= 0) {
+        writeToken("", 0);
+        setLockLeft(null);
+        setData((current) => (current ? { success: true, locked: true, passwordSet: true, config: current.config } : current));
+
+        return;
+      }
+
+      setLockLeft(left);
+    };
+
+    tick();
+
+    const timer = window.setInterval(tick, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [data, kaynak]);
 
   useEffect(() => {
     setLoading(true);
@@ -119,6 +165,7 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
         <div className="text-5xl">🔒</div>
         <div className="mt-3 text-[18px] font-black text-slate-900">{config.title || "Şampiyonlar Ligi Mağaza Müdürleri Yarışması"}</div>
         <p className="mt-2 text-[13px] font-semibold text-slate-500">Bu yarışmanın sıralamasını görmek için şifreyi girin.</p>
+        <p className="mt-1 text-[11px] font-semibold text-slate-400">Giriş yaptıktan 20 saniye sonra ekran tekrar kilitlenir.</p>
 
         {data.passwordSet === false ? (
           <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3 text-[13px] font-bold text-slate-500">Şifre henüz belirlenmedi. Lütfen yöneticiyle görüşün.</div>
@@ -156,6 +203,9 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
               {data.mudur?.computedAt && !data.bekleniyor ? ` · Yayın: ${new Date(data.mudur.computedAt).toLocaleString("tr-TR")}` : ""}
             </div>
           </div>
+          {lockLeft !== null && (
+            <div className={`rounded-full px-3 py-1 text-[12px] font-black ${lockLeft <= 5 ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-800"}`}>🔒 {lockLeft} sn sonra kilitlenecek</div>
+          )}
           {kaynak !== "test" && (
             <div>
               <div className="mb-1 text-[10px] font-bold text-slate-500">Gün</div>

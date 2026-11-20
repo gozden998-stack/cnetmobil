@@ -59,7 +59,7 @@ export const DEFAULT_LEAGUE: LeagueConfig = {
     "Cadde-Saray": ["CMR CADDE", "CMR SARAY"],
     "Kapaklı-Meydan": ["CMR KAPAKLI", "CMR MERKEZ"],
   },
-  mudurCarpan: "karekok",
+  mudurCarpan: "yok",
   publishUntil: "2026-11-28",
 };
 
@@ -385,8 +385,10 @@ export function toStoreView(result: Record<string, any>) {
 // 1. mağaza müdürü 1 gram altın, 2. mağaza müdürü 2000 TL. Önkoşul: şirket toplam cihaz satışı +%15 (aynı oranla).
 // Bir satış tek sayılır (hem 2.el sınıfında hem stok cihaz olsa da 1). İade satırı bir düşer.
 
-// Kullanıcının Excel'i: "1.EL & 2.EL & 1 EL TABLET Miktar" (adet toplamı, satır sayısı değil)
-export const MANAGER_DEVICE_CLASSES = new Set(["1el", "2el", "1eltablet"]);
+// Kullanıcının Excel'i: "1.EL & 2.EL & 1 EL TABLET Miktar" (adet toplamı, satır sayısı değil).
+// Sınıflar Personel Gidişat "Cihaz Adet" ile AYNI: 2el, 1el, 1eltablet, 4el (gerçek 1.el tablet kodu büyük ihtimalle "4el";
+// canlı Gidişat ayarında bu dört kod kayıtlı). WingSM'de 1el = SIFIR CİHAZ, 2el = 2. EL CİHAZ.
+export const MANAGER_DEVICE_CLASSES = new Set(["1el", "2el", "1eltablet", "4el"]);
 
 export const MANAGER_PRIZES: Array<{ rank: number; label: string }> = [
   { rank: 1, label: "1 gram altın" },
@@ -442,7 +444,7 @@ export function buildManagerStanding(input: {
   currentDays: number;
   carpanMode?: ManagerCarpanMode;
 }): ManagerRow[] {
-  const mode: ManagerCarpanMode = input.carpanMode ?? "karekok";
+  const mode: ManagerCarpanMode = input.carpanMode ?? "yok";
   const baselines = input.branches.map((branchLabel) => Math.max(0, input.baseline.get(branchLabel) ?? 0)).filter((value) => value > 0);
   const avgBaseline = baselines.length ? baselines.reduce((sum, value) => sum + value, 0) / baselines.length : 0;
   const rows: ManagerRow[] = input.branches.map((branchLabel) => {
@@ -949,7 +951,9 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
     managersByBranch,
     baselineDays: hasBaseline ? daysInclusive(monthStart, baselineTo) : 0,
     currentDays: daysInclusive(config.startDate, to),
-    carpanMode: config.mudurCarpan,
+    // Çarpan KULLANILMAZ (kullanıcı kararı): oran < %100 iken büyük çarpan, en yüksek oranlı mağazayı sona atıyordu.
+    // Sıralama doğrudan oranın yüksekliğine göre. (Config alanı geriye dönük uyum için duruyor, yok sayılır.)
+    carpanMode: "yok",
   });
   const prizes = assignManagerPrizes(standing);
 
@@ -970,7 +974,7 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
   const payload = {
     success: true,
     title: "Şampiyonlar Ligi Mağaza Müdürleri Yarışması",
-    carpanMode: config.mudurCarpan ?? "karekok",
+    carpanMode: "yok" as const,
     baselineRange: hasBaseline ? { from: monthStart, to: baselineTo } : null,
     range: { from: config.startDate, to },
     rows: standing,
