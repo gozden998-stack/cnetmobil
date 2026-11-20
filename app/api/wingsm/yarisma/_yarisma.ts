@@ -8,9 +8,10 @@
 //    puanına cihaz başına +bonus (varsayılan 125) eklenir. Liste boşsa bonus VERİLMEZ (eskiden tüm stock_devices sayılıyordu: yanlıştı).
 //  - Sıralama: hedef yüzdesi (toplam puan ÷ hedef). Mağaza müdürleri ve hedefi olmayanlar sıralamaya girmez.
 //  - Ödül: 1. 1 gr altın, 2. 1/2 gr altın, 3. 2000 TL, 4. 1000 TL.
-//  - Ekip kuralı: ilk 2 kişi AYNI ekipten olmalı ((Cadde+Saray) veya (Kapaklı+Meydan)). Olmazsa 2. ödül, 1.'nin
-//    ekibindeki bir sonraki kişiye gider; atlanan kişi sıradaki ödülü alır (örnek: 1 Fatih, 2 Emirhan, 3 Alper ->
-//    2. ödül Alper, 3. ödül Emirhan). 3. ve 4. ödül kalan kişilere sırayla.
+//  - Ekip kuralı: ilk 2 ödül FARKLI ekiplerden olmalı ((Cadde+Saray) ve (Kapaklı+Meydan) kombinasyonu). 2. sıradaki kişi 1. ile
+//    aynı ekipteyse 2. ödül, 1.'den sonra gelen ilk FARKLI ekipten kişiye kayar (3. sıra, o da aynıysa 4. ...); atlanan kişiler
+//    sıradaki ödülleri alır (örnek: 1 Fatih-Merkez, 2 Emirhan-Merkez, 3 Alper-Saray -> 2. ödül Alper, 3. ödül Emirhan).
+//    3. ve 4. ödül kalan kişilere sırayla.
 //  - Önkoşul: şirket toplam cihaz satışı bir önceki ayın AYNI günlerine göre %15 artmalı (bilgi olarak gösterilir).
 //
 // Hesap Değer Puan motorunu `skipSave` ile çağırır: resmi aylık rapor/arşiv kayıtlarına DOKUNULMAZ.
@@ -238,23 +239,25 @@ export function assignPrizes(standing: StandingPerson[], prizes: LeagueConfig["p
     used.add(first);
   }
 
-  // 2. ödül: 1.'nin ekibinden sıradaki kişi
+  // 2. ödül: ilk iki ödül FARKLI ekiplerden olmalı ((Cadde-Saray) ve (Kapaklı-Meydan) kombinasyonu).
+  // 2. sıradaki kişi 1. ile aynı ekipteyse ödül kayar: 1.'den sonra gelen ilk FARKLI ekipten kişi (3., o da aynıysa 4. ...) 2. ödülü alır;
+  // atlanan kişiler sıradaki ödülleri alır (örnek: 1 Fatih-Merkez, 2 Emirhan-Merkez, 3 Alper-Saray -> 2. ödül Alper, 3. ödül Emirhan).
   if (first && prizes.length > 1) {
-    const partner = ranked.find((person) => !used.has(person) && first.group !== null && person.group === first.group) ?? null;
+    const other = ranked.find((person) => !used.has(person) && (first.group === null || person.group === null || person.group !== first.group)) ?? null;
 
-    if (partner) {
-      slots[1] = partner;
-      used.add(partner);
+    if (other) {
+      slots[1] = other;
+      used.add(other);
 
-      if (partner.siralama !== 2) notes[1] = `Ekip kuralı: genel sıralamada ${partner.siralama}. (1. ile aynı ekip: ${first.group})`;
+      if (other.siralama !== 2) notes[1] = `Ekip kuralı: 1. ile aynı ekipten (${first.group}) olmayan ilk kişi, genel sıralamada ${other.siralama}.`;
     } else {
-      // Aynı ekipten kimse yoksa kural uygulanamaz: sıradaki kişi alır, not düşülür
+      // Farklı ekipten kimse yoksa kural uygulanamaz: sıradaki kişi alır, not düşülür
       const next = ranked.find((person) => !used.has(person)) ?? null;
 
       if (next) {
         slots[1] = next;
         used.add(next);
-        notes[1] = "1. ile aynı ekipten kişi bulunamadı; genel sıraya göre verildi (kontrol edin).";
+        notes[1] = "Farklı ekipten kişi bulunamadı; genel sıraya göre verildi (kontrol edin).";
       }
     }
   }
@@ -267,7 +270,7 @@ export function assignPrizes(standing: StandingPerson[], prizes: LeagueConfig["p
       slots[index] = next;
       used.add(next);
 
-      if (next.siralama !== index + 1) notes[index] = `Genel sıralamada ${next.siralama}. (2. ödül kaydırması nedeniyle)`;
+      if (next.siralama !== index + 1) notes[index] = `Genel sıralamada ${next.siralama}. (ödül kaydırması nedeniyle)`;
     }
   }
 
