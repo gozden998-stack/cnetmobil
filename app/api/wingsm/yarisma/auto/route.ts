@@ -14,7 +14,7 @@ import { NextRequest } from "next/server";
 import crypto from "crypto";
 
 import { getPool, json } from "../../score-rules/_shared";
-import { YARISMA_AUTO_RUN_MINUTES, computeLeague, ensureYarismaTables, getLeagueConfig, isAutoRunDayForLeague, istanbulDateAndMinutes } from "../_yarisma";
+import { YARISMA_AUTO_RUN_MINUTES, computeLeague, computeManagerLeague, ensureYarismaTables, getLeagueConfig, isAutoRunDayForLeague, istanbulDateAndMinutes } from "../_yarisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -70,6 +70,13 @@ export async function POST(request: NextRequest) {
     try {
       // Mağazaların gördüğü "yayın" sonucu SADECE bu otomatik hesapla güncellenir.
       const result: any = await computeLeague(pool, config, "yayin");
+
+      // Mağaza müdürleri yarışması: ayrı hesap; hata verirse kişi yarışmasının yayınını BOZMAZ (logla, geç).
+      try {
+        await computeManagerLeague(pool, config, "yayin");
+      } catch (managerError) {
+        console.error("YARISMA_MUDUR_AUTO_ERROR:", managerError);
+      }
 
       await pool.query(`UPDATE public.yarisma_auto_runs SET finished_at = now() WHERE league_id = $1 AND run_date = $2::date`, [config.id, today]);
 

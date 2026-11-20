@@ -9,7 +9,7 @@ import { NextRequest } from "next/server";
 
 import { getPool, json, requireValidSession } from "../../score-rules/_shared";
 import { CMR_BRANCH_LABELS } from "../../gidisat/_gidisat";
-import { getLatestResult, getLeagueConfig, toStoreView } from "../_yarisma";
+import { getLatestResult, getLeagueConfig, mudurLeagueId, toStoreView } from "../_yarisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +37,12 @@ export async function GET(request: NextRequest) {
     // Mağazalar YALNIZ otomatik (12:30) "yayın" sonucunu görür. Yönetici ?kaynak=test ile kendi Hesapla (test) sonucunu önizler.
     const kaynak = isAdmin && request.nextUrl.searchParams.get("kaynak") === "test" ? "test" : "yayin";
     const result = await getLatestResult(pool, config.id, kaynak);
+    const mudurRaw: any = await getLatestResult(pool, mudurLeagueId(config), kaynak);
+    // Mağaza müdürleri yarışması (mağaza bazlı sayılar; kişisel veri yok)
+    const mudur =
+      mudurRaw && Array.isArray(mudurRaw.rows)
+        ? { title: mudurRaw.title, carpanMode: mudurRaw.carpanMode, computedAt: mudurRaw.computedAt, baselineRange: mudurRaw.baselineRange, range: mudurRaw.range, rows: mudurRaw.rows, prizes: mudurRaw.prizes, precondition: mudurRaw.precondition }
+        : null;
 
     if (!result || (result as any).empty || !Array.isArray((result as any).standing)) {
       return json({
@@ -46,10 +52,11 @@ export async function GET(request: NextRequest) {
         prizeList: config.prizes,
         myBranch,
         kaynak,
+        mudur,
       });
     }
 
-    return json({ ...toStoreView(result as Record<string, any>), prizeList: config.prizes, myBranch, kaynak });
+    return json({ ...toStoreView(result as Record<string, any>), prizeList: config.prizes, myBranch, kaynak, mudur });
   } catch (error) {
     console.error("YARISMA_SONUC_ERROR:", error);
 

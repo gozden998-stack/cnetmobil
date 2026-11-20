@@ -30,6 +30,11 @@ export type LeagueConfig = {
   preconditionPct: number; // şirket cihaz satışı artış önkoşulu (%)
   prizes: Array<{ rank: number; label: string }>;
   groups: Record<string, string[]>; // ekip adı -> mağaza etiketleri
+  // Mağaza Müdürleri yarışması adalet çarpanı (küçük tabanlı mağaza yüzdede avantajlı olmasın):
+  //   "karekok": çarpan = √(mağazanın 1-16 satışı ÷ 4 mağazanın ortalaması)  (önerilen, orta yol)
+  //   "oransal": çarpan = mağazanın 1-16 satışı ÷ ortalama  (puan = mutlak artışla orantılı, büyük mağaza avantajlı)
+  //   "yok": çarpan 1 (ham yüzde)
+  mudurCarpan: "karekok" | "oransal" | "yok";
 };
 
 export const DEFAULT_LEAGUE: LeagueConfig = {
@@ -51,6 +56,7 @@ export const DEFAULT_LEAGUE: LeagueConfig = {
     "Cadde-Saray": ["CMR CADDE", "CMR SARAY"],
     "Kapaklı-Meydan": ["CMR KAPAKLI", "CMR MERKEZ"],
   },
+  mudurCarpan: "karekok",
 };
 
 // Cihaz sınıfları (Personel Gidişat "Cihaz Adet" ile aynı): 2el, 1el, 1el tablet, 4el
@@ -132,13 +138,17 @@ export function buildStanding(input: {
   targetsByName: Map<string, PersonnelTargetEntry[]>;
   bonusPoints: number;
   groups: LeagueConfig["groups"];
+  // true: yalnız yarışmaya özel hedefler geçerli (Değer Puan hedefine DÖNÜLMEZ; tabloda olmayan kişi sıralamaya girmez)
+  strictTargets?: boolean;
+  // Hedefi tanımlı olup henüz satışı olmayan kişiler de listede 0 puanla görünsün
+  extraPeople?: Array<{ saticiAdi: string; branchLabel: string }>;
 }): StandingPerson[] {
   const people = new Map<string, StandingPerson>();
 
   const make = (saticiAdi: string, saticiKod: string, fallbackBranch: string, puan: number, engineHedef: number | null, engineManager: boolean) => {
     const target = pickTarget(input.targetsByName.get(normalizeName(saticiAdi)), fallbackBranch);
     const branchLabel = target?.branchLabel || fallbackBranch;
-    const hedef = target ? target.hedef : engineHedef;
+    const hedef = target ? target.hedef : input.strictTargets ? null : engineHedef;
     const isManager = target ? target.isManager : engineManager;
 
     return {
@@ -162,6 +172,13 @@ export function buildStanding(input: {
     people.set(personnelIdentityKey(person.saticiAdi, person.saticiKod), make(person.saticiAdi, person.saticiKod, person.branchLabel, person.carpanliPuan, person.hedef, person.isManager));
   }
 
+  // Hedefi tanımlı ama hiç satışı olmayan kişiler de listede görünür (0 puan)
+  for (const extra of input.extraPeople ?? []) {
+    const key = personnelIdentityKey(extra.saticiAdi, "");
+
+    if (!people.has(key)) people.set(key, make(extra.saticiAdi, "", extra.branchLabel, 0, null, false));
+  }
+
   // Yalnız stok cihaz satan (normal puanı olmayan) kişiler de listeye girer
   for (const [personKey, sales] of input.stockByPerson) {
     let person = people.get(personKey);
@@ -182,7 +199,8 @@ export function buildStanding(input: {
   const list = Array.from(people.values());
 
   for (const person of list) {
-    person.yuzde = !person.isManager && person.hedef && person.hedef > 0 ? (person.toplamPuan / person.hedef) * 100 : null;
+    // Mağaza müdürleri de sıralamaya girer (kullanıcı kararı); yalnız hedefi olmayan sıralanamaz.
+    person.yuzde = person.hedef && person.hedef > 0 ? (person.toplamPuan / person.hedef) * 100 : null;
   }
 
   const ranked = list.filter((person) => person.yuzde !== null).sort((a, b) => (b.yuzde ?? 0) - (a.yuzde ?? 0) || b.toplamPuan - a.toplamPuan);
@@ -349,6 +367,117 @@ export function toStoreView(result: Record<string, any>) {
 }
 
 // ------------------------------------------------------------------
+// MAĞAZA MÜDÜRLERİ YARIŞMASI (aynı tarihler, mağaza bazlı)
+// ------------------------------------------------------------------
+// Kural (kullanıcı): her mağazanın 1-16 Kasım cihaz satışı toplamı (1.el + 2.el + stok cihaz) ile 17-30 Kasım toplamı
+// kıyaslanır; oran = 17-30 toplamı ÷ 1-16 toplamı. Yüzdesel olarak en çok artıran mağazanın müdürü kazanır:
+// 1. mağaza müdürü 1 gram altın, 2. mağaza müdürü 2000 TL. Önkoşul: şirket toplam cihaz satışı +%15 (aynı oranla).
+// Bir satış tek sayılır (hem 2.el sınıfında hem stok cihaz olsa da 1). İade satırı bir düşer.
+
+export const MANAGER_DEVICE_CLASSES = new Set(["1el", "2el"]);
+
+export const MANAGER_PRIZES: Array<{ rank: number; label: string }> = [
+  { rank: 1, label: "1 gram altın" },
+  { rank: 2, label: "2000 TL" },
+];
+
+export function countDeviceSalesByBranch(rows: ImeiSaleRow[], stockImeis: Set<string>): Map<string, number> {
+  const out = new Map<string, number>();
+
+  for (const row of rows) {
+    const isDevice = MANAGER_DEVICE_CLASSES.has(fold(row.malSinif)) || row.imeis.some((imei) => stockImeis.has(imei));
+
+    if (!isDevice) continue;
+
+    out.set(row.branchLabel, (out.get(row.branchLabel) ?? 0) + (row.isReturn ? -1 : 1));
+  }
+
+  return out;
+}
+
+export type ManagerRow = {
+  branchLabel: string;
+  managers: string[];
+  baseline: number; // 1-16 Kasım toplamı
+  current: number; // 17-30 Kasım toplamı (bugüne kadar)
+  ratioPct: number | null; // current ÷ baseline × 100
+  dailyRatioPct: number | null; // bilgi: günlük ortalamalar oranı
+  carpan: number | null; // adalet çarpanı (tabana göre)
+  puan: number | null; // (oran - 100) × çarpan: sıralama puanı
+  siralama: number | null;
+};
+
+export type ManagerCarpanMode = LeagueConfig["mudurCarpan"];
+
+// Adalet çarpanı: küçük tabanlı mağazanın aynı yüzdesi daha az, büyük tabanlı mağazanınki daha çok sayılır.
+export function managerMultiplier(baseline: number, avgBaseline: number, mode: ManagerCarpanMode): number {
+  if (mode === "yok" || avgBaseline <= 0 || baseline <= 0) return 1;
+
+  const ratio = baseline / avgBaseline;
+
+  return mode === "oransal" ? ratio : Math.sqrt(ratio);
+}
+
+export function buildManagerStanding(input: {
+  branches: string[];
+  baseline: Map<string, number>;
+  current: Map<string, number>;
+  managersByBranch: Map<string, string[]>;
+  baselineDays: number;
+  currentDays: number;
+  carpanMode?: ManagerCarpanMode;
+}): ManagerRow[] {
+  const mode: ManagerCarpanMode = input.carpanMode ?? "karekok";
+  const baselines = input.branches.map((branchLabel) => Math.max(0, input.baseline.get(branchLabel) ?? 0)).filter((value) => value > 0);
+  const avgBaseline = baselines.length ? baselines.reduce((sum, value) => sum + value, 0) / baselines.length : 0;
+  const rows: ManagerRow[] = input.branches.map((branchLabel) => {
+    const baseline = Math.max(0, input.baseline.get(branchLabel) ?? 0);
+    const current = Math.max(0, input.current.get(branchLabel) ?? 0);
+
+    return {
+      branchLabel,
+      managers: input.managersByBranch.get(normalizeName(branchLabel)) ?? [],
+      baseline,
+      current,
+      ratioPct: baseline > 0 ? (current / baseline) * 100 : null,
+      dailyRatioPct: baseline > 0 && input.baselineDays > 0 && input.currentDays > 0 ? (current / input.currentDays / (baseline / input.baselineDays)) * 100 : null,
+      carpan: baseline > 0 ? managerMultiplier(baseline, avgBaseline, mode) : null,
+      puan: null,
+      siralama: null,
+    };
+  });
+
+  for (const row of rows) {
+    row.puan = row.ratioPct !== null && row.carpan !== null ? (row.ratioPct - 100) * row.carpan : null;
+  }
+
+  const ranked = rows.filter((row) => row.puan !== null).sort((a, b) => (b.puan ?? 0) - (a.puan ?? 0) || b.current - a.current);
+
+  ranked.forEach((row, index) => {
+    row.siralama = index + 1;
+  });
+
+  return rows.sort((a, b) => {
+    if (a.siralama !== null && b.siralama !== null) return a.siralama - b.siralama;
+    if (a.siralama !== null) return -1;
+    if (b.siralama !== null) return 1;
+
+    return b.current - a.current;
+  });
+}
+
+export function assignManagerPrizes(rows: ManagerRow[], prizes = MANAGER_PRIZES) {
+  const ranked = rows.filter((row) => row.siralama !== null);
+
+  return prizes.map((prize, index) => ({
+    rank: prize.rank,
+    label: prize.label,
+    branchLabel: ranked[index]?.branchLabel ?? null,
+    winner: ranked[index] ? ranked[index].managers.join(", ") || "Müdür tanımlı değil" : null,
+  }));
+}
+
+// ------------------------------------------------------------------
 // VERİTABANI + HESAP
 // ------------------------------------------------------------------
 
@@ -376,7 +505,107 @@ export async function ensureYarismaTables(pool: Pool) {
     )
   `);
 
+  // Yarışmaya özel kişi hedefleri (Değer Puan hedeflerinden bağımsız; yönetici ekranından girilir)
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.yarisma_targets (
+      league_id TEXT NOT NULL,
+      name_key TEXT NOT NULL,
+      satici_adi TEXT NOT NULL,
+      branch_label TEXT NOT NULL,
+      target_value NUMERIC(14,2) NOT NULL,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (league_id, name_key)
+    )
+  `);
+
   tablesReady = true;
+}
+
+// ------------------------------------------------------------------
+// YARIŞMAYA ÖZEL KİŞİ HEDEFLERİ
+// ------------------------------------------------------------------
+
+export type YarismaTarget = { saticiAdi: string; branchLabel: string; hedef: number };
+
+export async function getYarismaTargets(pool: Pool, leagueId: string): Promise<YarismaTarget[]> {
+  await ensureYarismaTables(pool);
+
+  const result = await pool.query(
+    `SELECT satici_adi, branch_label, target_value FROM public.yarisma_targets WHERE league_id = $1 ORDER BY branch_label, satici_adi`,
+    [leagueId]
+  );
+
+  return result.rows.map((row) => ({ saticiAdi: String(row.satici_adi), branchLabel: String(row.branch_label), hedef: Number(row.target_value) }));
+}
+
+// Değer Puan hedefleri (başlangıç listesi olarak önerilir; ad WingSM satıcı adıyla zaten eşleşir)
+export async function getDegerPuanTargets(pool: Pool, period: string): Promise<YarismaTarget[]> {
+  try {
+    const result = await pool.query(
+      `SELECT satici_adi, branch_label, target_value FROM public.wingsm_personnel_targets WHERE period = $1 AND active = true ORDER BY branch_label, satici_adi`,
+      [period]
+    );
+
+    return result.rows.map((row) => ({ saticiAdi: String(row.satici_adi), branchLabel: String(row.branch_label), hedef: Number(row.target_value) }));
+  } catch {
+    return [];
+  }
+}
+
+const STORE_LABELS_FOR_TARGETS = ["CMR MERKEZ", "CMR CADDE", "CMR SARAY", "CMR KAPAKLI"];
+
+export function validateTargets(raw: unknown): { ok: true; rows: YarismaTarget[] } | { ok: false; error: string } {
+  if (!Array.isArray(raw)) return { ok: false, error: "Hedef listesi geçersiz." };
+  if (raw.length > 300) return { ok: false, error: "En fazla 300 kişi girilebilir." };
+
+  const seen = new Set<string>();
+  const rows: YarismaTarget[] = [];
+
+  for (const item of raw as any[]) {
+    const saticiAdi = String(item?.saticiAdi ?? "").trim().replace(/\s+/g, " ");
+    const branch = STORE_LABELS_FOR_TARGETS.find((label) => normalizeName(label) === normalizeName(String(item?.branchLabel ?? "")));
+    const hedef = Number(item?.hedef);
+
+    if (!saticiAdi || saticiAdi.length > 100) return { ok: false, error: "Her satırda kişi adı olmalı (en fazla 100 karakter)." };
+    if (!branch) return { ok: false, error: `"${saticiAdi}" için mağaza seçilmeli (CMR MERKEZ, CADDE, SARAY, KAPAKLI).` };
+    if (!Number.isFinite(hedef) || hedef < 0 || hedef > 1_000_000) return { ok: false, error: `"${saticiAdi}" için hedef 0 ile 1.000.000 arasında bir sayı olmalı.` };
+
+    const key = normalizeName(saticiAdi);
+
+    if (seen.has(key)) return { ok: false, error: `"${saticiAdi}" listede birden fazla kez var.` };
+
+    seen.add(key);
+    rows.push({ saticiAdi, branchLabel: branch, hedef });
+  }
+
+  return { ok: true, rows };
+}
+
+// Listeyi TAMAMEN değiştirir (boş liste = yarışma hedefi yok, Değer Puan hedeflerine dönülür).
+export async function saveYarismaTargets(pool: Pool, leagueId: string, rows: YarismaTarget[]) {
+  await ensureYarismaTables(pool);
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    await client.query(`DELETE FROM public.yarisma_targets WHERE league_id = $1`, [leagueId]);
+
+    for (const row of rows) {
+      await client.query(
+        `INSERT INTO public.yarisma_targets (league_id, name_key, satici_adi, branch_label, target_value) VALUES ($1, $2, $3, $4, $5)`,
+        [leagueId, normalizeName(row.saticiAdi), row.saticiAdi, row.branchLabel, row.hedef]
+      );
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 export async function getLeagueConfig(pool: Pool, id = DEFAULT_LEAGUE.id): Promise<LeagueConfig> {
@@ -444,18 +673,28 @@ export async function computeLeague(pool: Pool, config: LeagueConfig, kind: Resu
   const period = config.countFrom.slice(0, 7);
   const targetsByName = new Map<string, PersonnelTargetEntry[]>();
 
-  try {
-    const targetRows = await pool.query(`SELECT branch_label, satici_adi, target_value, is_manager FROM public.wingsm_personnel_targets WHERE period = $1 AND active = true`, [period]);
+  // Hedef kaynağı: yarışmaya özel hedefler tanımlıysa YALNIZ onlar; tanımlı değilse Değer Puan hedefleri.
+  const customTargets = await getYarismaTargets(pool, config.id);
+  const targetSource: "yarisma" | "degerpuan" = customTargets.length > 0 ? "yarisma" : "degerpuan";
 
-    for (const row of targetRows.rows) {
-      const key = normalizeName(String(row.satici_adi));
-      const list = targetsByName.get(key) ?? [];
-
-      list.push({ branchLabel: String(row.branch_label), hedef: Number(row.target_value), isManager: Boolean(row.is_manager) });
-      targetsByName.set(key, list);
+  if (targetSource === "yarisma") {
+    for (const target of customTargets) {
+      targetsByName.set(normalizeName(target.saticiAdi), [{ branchLabel: target.branchLabel, hedef: target.hedef, isManager: false }]);
     }
-  } catch {
-    // Hedef tablosu yoksa hedefsiz kabul edilir
+  } else {
+    try {
+      const targetRows = await pool.query(`SELECT branch_label, satici_adi, target_value, is_manager FROM public.wingsm_personnel_targets WHERE period = $1 AND active = true`, [period]);
+
+      for (const row of targetRows.rows) {
+        const key = normalizeName(String(row.satici_adi));
+        const list = targetsByName.get(key) ?? [];
+
+        list.push({ branchLabel: String(row.branch_label), hedef: Number(row.target_value), isManager: Boolean(row.is_manager) });
+        targetsByName.set(key, list);
+      }
+    } catch {
+      // Hedef tablosu yoksa hedefsiz kabul edilir
+    }
   }
 
   const standing = buildStanding({
@@ -471,6 +710,8 @@ export async function computeLeague(pool: Pool, config: LeagueConfig, kind: Resu
     targetsByName,
     bonusPoints: config.bonusPoints,
     groups: config.groups,
+    strictTargets: targetSource === "yarisma",
+    extraPeople: targetSource === "yarisma" ? customTargets.map((target) => ({ saticiAdi: target.saticiAdi, branchLabel: target.branchLabel })) : [],
   });
 
   const prizes = assignPrizes(standing, config.prizes);
@@ -503,6 +744,7 @@ export async function computeLeague(pool: Pool, config: LeagueConfig, kind: Resu
     success: true,
     config,
     range: { from: config.countFrom, to },
+    targetSource,
     standing: standing.map((person) => ({ ...person })),
     prizes,
     precondition,
@@ -514,6 +756,109 @@ export async function computeLeague(pool: Pool, config: LeagueConfig, kind: Resu
     `INSERT INTO public.yarisma_results (league_id, kind, payload, computed_at) VALUES ($1, $2, $3::jsonb, now())
      ON CONFLICT (league_id, kind) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()`,
     [config.id, kind, JSON.stringify(payload)]
+  );
+
+  return { ...payload, computedAt: new Date().toISOString() };
+}
+
+// ------------------------------------------------------------------
+// MAĞAZA MÜDÜRLERİ YARIŞMASI HESABI
+// ------------------------------------------------------------------
+
+const CMR_STORE_LABELS = ["CMR MERKEZ", "CMR CADDE", "CMR SARAY", "CMR KAPAKLI"];
+
+function daysInclusive(from: string, to: string): number {
+  return Math.max(0, Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1);
+}
+
+export const mudurLeagueId = (config: Pick<LeagueConfig, "id">) => `${config.id}-mudur`;
+
+// 1-16 Kasım (başlangıç öncesi) ile 17-30 Kasım karşılaştırması. Sonucu `${id}-mudur` altında kaydeder (kind: test | yayin).
+export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kind: ResultKind = "test") {
+  await ensureYarismaTables(pool);
+
+  const monthStart = `${config.startDate.slice(0, 7)}-01`;
+  const baselineTo = addDays(config.startDate, -1);
+  const yesterday = addDays(todayInTurkey(), -1);
+  const to = yesterday < config.endDate ? yesterday : config.endDate;
+
+  if (to < config.startDate) {
+    return { success: true, empty: true, message: "Henüz sayılacak gün yok (rapor dünün verisine kadar hesaplanır).", range: { from: config.startDate, to } };
+  }
+
+  const hasBaseline = baselineTo >= monthStart;
+  const [baseReport, curReport]: any[] = await Promise.all([
+    hasBaseline ? computeAndSaveDegerPuanReport({ bastar: monthStart, bittar: baselineTo, skipSave: true, collectImeis: true }) : Promise.resolve({ imeiRows: [] }),
+    computeAndSaveDegerPuanReport({ bastar: config.startDate, bittar: to, skipSave: true, collectImeis: true }),
+  ]);
+
+  const baseRows: ImeiSaleRow[] = Array.isArray(baseReport?.imeiRows) ? baseReport.imeiRows : [];
+  const curRows: ImeiSaleRow[] = Array.isArray(curReport?.imeiRows) ? curReport.imeiRows : [];
+  const allImeis = Array.from(new Set([...baseRows, ...curRows].flatMap((row) => row.imeis)));
+  const stockImeis = new Set<string>(
+    allImeis.length ? (await pool.query(`SELECT imei FROM public.stock_devices WHERE imei = ANY($1::text[])`, [allImeis])).rows.map((row) => String(row.imei)) : []
+  );
+
+  // Mağaza müdürleri: Hedefler tablosunda "müdür" işaretli kişiler (mağazaya göre)
+  const managersByBranch = new Map<string, string[]>();
+
+  try {
+    const managerRows = await pool.query(`SELECT branch_label, satici_adi FROM public.wingsm_personnel_targets WHERE period = $1 AND active = true AND is_manager = true`, [config.startDate.slice(0, 7)]);
+
+    for (const row of managerRows.rows) {
+      const key = normalizeName(String(row.branch_label));
+      const list = managersByBranch.get(key) ?? [];
+
+      list.push(String(row.satici_adi));
+      managersByBranch.set(key, list);
+    }
+  } catch {
+    // Hedef tablosu yoksa müdür adı boş kalır
+  }
+
+  const baselineCounts = countDeviceSalesByBranch(baseRows, stockImeis);
+  const currentCounts = countDeviceSalesByBranch(curRows, stockImeis);
+
+  const standing = buildManagerStanding({
+    branches: CMR_STORE_LABELS,
+    baseline: baselineCounts,
+    current: currentCounts,
+    managersByBranch,
+    baselineDays: hasBaseline ? daysInclusive(monthStart, baselineTo) : 0,
+    currentDays: daysInclusive(config.startDate, to),
+    carpanMode: config.mudurCarpan,
+  });
+  const prizes = assignManagerPrizes(standing);
+
+  // Önkoşul: şirket toplamı, aynı 1-16 / 17-30 oranıyla
+  const totalBase = standing.reduce((sum, row) => sum + row.baseline, 0);
+  const totalCur = standing.reduce((sum, row) => sum + row.current, 0);
+  const ratio = totalBase > 0 ? (totalCur / totalBase) * 100 : null;
+  const precondition = {
+    required: config.preconditionPct,
+    available: ratio !== null,
+    baseline: totalBase,
+    current: totalCur,
+    ratioPct: ratio,
+    growthPct: ratio === null ? null : ratio - 100,
+    met: ratio === null ? null : ratio - 100 >= config.preconditionPct,
+  };
+
+  const payload = {
+    success: true,
+    title: "Mağaza Müdürleri Yarışması",
+    carpanMode: config.mudurCarpan ?? "karekok",
+    baselineRange: hasBaseline ? { from: monthStart, to: baselineTo } : null,
+    range: { from: config.startDate, to },
+    rows: standing,
+    prizes,
+    precondition,
+  };
+
+  await pool.query(
+    `INSERT INTO public.yarisma_results (league_id, kind, payload, computed_at) VALUES ($1, $2, $3::jsonb, now())
+     ON CONFLICT (league_id, kind) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()`,
+    [mudurLeagueId(config), kind, JSON.stringify(payload)]
   );
 
   return { ...payload, computedAt: new Date().toISOString() };

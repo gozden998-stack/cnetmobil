@@ -5,7 +5,8 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 
-import SampiyonlarLigiSonuc from "./SampiyonlarLigiSonuc";
+import SampiyonlarLigiSonuc, { MudurKarti } from "./SampiyonlarLigiSonuc";
+import YarismaHedefleri from "./YarismaHedefleri";
 
 type Row = Record<string, any>;
 
@@ -18,10 +19,13 @@ export default function SampiyonlarLigi() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [openPerson, setOpenPerson] = useState<string | null>(null);
-  const [view, setView] = useState<"yonetim" | "magaza">("yonetim");
+  const [view, setView] = useState<"yonetim" | "hedefler" | "magaza">("yonetim");
+  const [targets, setTargets] = useState<Row[]>([]);
+  const [degerPuanTargets, setDegerPuanTargets] = useState<Row[]>([]);
   // Önizleme kaynağı: "test" = senin Hesapla sonucun, "yayin" = mağazaların şu an gördüğü (12:30 otomatik)
   const [previewKaynak, setPreviewKaynak] = useState<"test" | "yayin">("test");
   const [published, setPublished] = useState<Row | null>(null);
+  const [mudur, setMudur] = useState<Row | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -33,6 +37,9 @@ export default function SampiyonlarLigi() {
       setConfig(payload.config);
       setResult(payload.result);
       setPublished(payload.published ?? null);
+      setMudur(payload.mudur ?? null);
+      setTargets(Array.isArray(payload.targets) ? payload.targets : []);
+      setDegerPuanTargets(Array.isArray(payload.degerPuanTargets) ? payload.degerPuanTargets : []);
     } catch (e: any) {
       setMessage(e?.message || "Yarışma okunamadı.");
     }
@@ -77,6 +84,15 @@ export default function SampiyonlarLigi() {
     }
   };
 
+  const changeCarpan = async (mudurCarpan: string) => {
+    const payload = await post({ action: "ayar", mudurCarpan });
+
+    if (payload) {
+      setConfig(payload.config);
+      setMessage("Müdür yarışması çarpanı değişti. Sonucu görmek için Hesapla'ya bas (mağazalar yarın 12:30'daki otomatik yayında görür).");
+    }
+  };
+
   const changeCountFrom = async (countFrom: string) => {
     const payload = await post({ action: "ayar", countFrom });
 
@@ -106,6 +122,7 @@ export default function SampiyonlarLigi() {
         {(
           [
             ["yonetim", "Yönetim (Hesapla)"],
+            ["hedefler", "Hedefler"],
             ["magaza", "Mağaza görünümü (önizleme)"],
           ] as const
         ).map(([id, label]) => (
@@ -143,6 +160,8 @@ export default function SampiyonlarLigi() {
           {previewKaynak === "test" && <div className="rounded-xl border border-amber-200 bg-amber-50 p-2 text-[12px] font-bold text-amber-800">TEST ÖNİZLEMESİ: bu sonucu mağazalar görmez.</div>}
           <SampiyonlarLigiSonuc key={previewKaynak} kaynak={previewKaynak} />
         </>
+      ) : view === "hedefler" ? (
+        <YarismaHedefleri key={`${targets.length}-${degerPuanTargets.length}`} targets={targets} degerPuanTargets={degerPuanTargets} onSaved={() => void load()} />
       ) : (
       <>
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px] font-bold text-amber-800">
@@ -163,6 +182,19 @@ export default function SampiyonlarLigi() {
             {config && monthStart !== config.startDate && <option value={monthStart}>{dateTr(monthStart)} (ay başı)</option>}
           </select>
         </label>
+        <label className="flex items-center gap-2 text-[13px] font-bold text-slate-700">
+          Müdür yarışması çarpanı:
+          <select
+            value={config?.mudurCarpan || "karekok"}
+            disabled={busy || !config}
+            onChange={(event) => void changeCarpan(event.target.value)}
+            className="h-10 rounded-lg border border-slate-200 px-3 text-[13px] font-semibold outline-none focus:border-violet-400"
+          >
+            <option value="karekok">Karekök (önerilen)</option>
+            <option value="oransal">Tam orantılı (mutlak artış)</option>
+            <option value="yok">Çarpan yok (ham yüzde)</option>
+          </select>
+        </label>
         <div className="text-[13px] font-semibold text-slate-500">Stok cihaz bonusu: +{config?.bonusPoints ?? 125} puan / cihaz</div>
         <button type="button" disabled={busy || !config} onClick={() => void hesapla()} className="ml-auto rounded-xl bg-violet-600 px-6 py-2.5 text-[14px] font-black text-white hover:bg-violet-700 disabled:opacity-50">
           {busy ? "Hesaplanıyor..." : "Hesapla"}
@@ -176,7 +208,7 @@ export default function SampiyonlarLigi() {
       {result?.standing && (
         <>
           <div className="text-[12px] font-semibold text-slate-500">
-            Sayılan aralık: {dateTr(result.range?.from)} - {dateTr(result.range?.to)} · Son hesap: {result.computedAt ? new Date(result.computedAt).toLocaleString("tr-TR") : "-"} · Stok cihaz satışı: {result.stockDeviceCount ?? 0} adet
+            Sayılan aralık: {dateTr(result.range?.from)} - {dateTr(result.range?.to)} · Son hesap: {result.computedAt ? new Date(result.computedAt).toLocaleString("tr-TR") : "-"} · Stok cihaz satışı: {result.stockDeviceCount ?? 0} adet · Hedef kaynağı: {result.targetSource === "yarisma" ? "Yarışma hedefleri" : "Değer Puan hedefleri"}
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
@@ -246,7 +278,7 @@ export default function SampiyonlarLigi() {
                         <td className="px-3 py-2 font-bold">
                           {person.saticiAdi || `Kod ${person.saticiKod}`}
                           {prize && <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-black text-amber-800">{prize.rank}. ödül</span>}
-                          {person.isManager && <span className="ml-2 text-[11px] font-semibold text-slate-400">(müdür, sıralama dışı)</span>}
+                          {person.isManager && <span className="ml-2 text-[11px] font-semibold text-slate-400">(müdür)</span>}
                         </td>
                         <td className="px-3 py-2 font-semibold">{person.branchLabel || "-"}</td>
                         <td className="px-3 py-2 font-semibold">{person.group || "-"}</td>
@@ -284,6 +316,7 @@ export default function SampiyonlarLigi() {
           </div>
         </>
       )}
+      {mudur && <MudurKarti mudur={mudur} />}
       </>
       )}
     </div>

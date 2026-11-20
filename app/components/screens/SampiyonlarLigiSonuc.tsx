@@ -135,6 +135,77 @@ export default function SampiyonlarLigiSonuc({ kaynak = "yayin" }: { kaynak?: "y
           </div>
         </>
       )}
+      {data.mudur && <MudurKarti mudur={data.mudur} myBranch={data.myBranch} />}
+    </div>
+  );
+}
+
+// Mağaza Müdürleri Yarışması kartı (mağaza görünümü + yönetici ekranı ortak)
+export function MudurKarti({ mudur, myBranch }: { mudur: Row; myBranch?: string }) {
+  const rows: Row[] = Array.isArray(mudur?.rows) ? mudur.rows : [];
+  const prizes: Row[] = Array.isArray(mudur?.prizes) ? mudur.prizes : [];
+  const pre: Row | null = mudur?.precondition ?? null;
+  const base = mudur?.baselineRange;
+  const range = mudur?.range;
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50/60 to-white p-4 shadow-sm">
+      <div>
+        <div className="text-[16px] font-black text-slate-900">🏆 {mudur?.title || "Mağaza Müdürleri Yarışması"}</div>
+        <div className="text-[12px] font-semibold text-slate-500">
+          Oran = {dateTr(range?.from)} - {dateTr(range?.to)} cihaz satışı (1.el + 2.el + stok cihaz) ÷ {base ? `${dateTr(base.from)} - ${dateTr(base.to)}` : "önceki dönem"} cihaz satışı.
+          {mudur?.carpanMode === "yok" ? " Sıralama oranın artışına göre." : " Mağaza büyüklüğü farkı için artışa adalet çarpanı uygulanır (çarpan, mağazanın önceki dönem satışının büyüklüğüne göre); sıralama \"Puan\" sütununa göre."} En yüksek puanlı mağazanın müdürü kazanır.
+          {mudur?.computedAt ? ` · Son güncelleme: ${new Date(mudur.computedAt).toLocaleString("tr-TR")}` : ""}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {prizes.map((prize) => (
+          <div key={prize.rank} className="rounded-xl border border-slate-200 bg-white p-3">
+            <div className="text-[12px] font-black uppercase text-amber-600">{prize.rank}. Mağaza Müdürü</div>
+            <div className="text-[15px] font-black text-slate-900">{prize.label}</div>
+            <div className="mt-0.5 text-[13px] font-bold text-slate-600">{prize.branchLabel ? `${prize.branchLabel} · ${prize.winner}` : "Henüz belli değil"}</div>
+          </div>
+        ))}
+      </div>
+
+      {pre?.available && (
+        <div className="text-[12px] font-bold text-slate-600">
+          Önkoşul (şirket cihaz satışı +%{pre.required}): 1-16 toplam <b>{pre.baseline}</b>, 17-30 şimdiye kadar <b>{pre.current}</b> → oran <b>%{fmt(pre.ratioPct, 1)}</b>{" "}
+          <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${pre.met ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{pre.met ? "Sağlanıyor" : "Henüz sağlanmıyor"}</span>
+        </div>
+      )}
+
+      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white p-3">
+        <table className="w-full min-w-[640px] text-left">
+          <thead>
+            <tr className="border-b border-slate-200 text-[12px] font-black uppercase text-slate-500">
+              <th className="px-3 py-2">Sıra</th>
+              <th className="px-3 py-2">Mağaza</th>
+              <th className="px-3 py-2">Müdür</th>
+              <th className="px-3 py-2 text-right">{base ? `${dateTr(base.from).slice(0, 5)}-${dateTr(base.to).slice(0, 5)}` : "Önceki"}</th>
+              <th className="px-3 py-2 text-right">{range ? `${dateTr(range.from).slice(0, 5)}-${dateTr(range.to).slice(0, 5)}` : "Şimdi"}</th>
+              <th className="px-3 py-2 text-right">Oran</th>
+              {mudur?.carpanMode !== "yok" && <th className="px-3 py-2 text-right">Çarpan</th>}
+              {mudur?.carpanMode !== "yok" && <th className="px-3 py-2 text-right">Puan</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {rows.map((row) => (
+              <tr key={row.branchLabel} className={`text-[13px] text-slate-800 ${same(row.branchLabel, myBranch) ? "bg-blue-50/60" : ""}`}>
+                <td className="px-3 py-2 font-black">{row.siralama ?? "-"}</td>
+                <td className="px-3 py-2 font-bold">{row.branchLabel}</td>
+                <td className="px-3 py-2 font-semibold">{Array.isArray(row.managers) && row.managers.length ? row.managers.join(", ") : "-"}</td>
+                <td className="px-3 py-2 text-right font-semibold">{row.baseline}</td>
+                <td className="px-3 py-2 text-right font-semibold">{row.current}</td>
+                <td className="px-3 py-2 text-right font-black">{row.ratioPct === null ? "-" : `%${fmt(row.ratioPct, 1)}`}</td>
+                {mudur?.carpanMode !== "yok" && <td className="px-3 py-2 text-right font-semibold">{row.carpan === null || row.carpan === undefined ? "-" : fmt(row.carpan, 2)}</td>}
+                {mudur?.carpanMode !== "yok" && <td className="px-3 py-2 text-right font-black">{row.puan === null || row.puan === undefined ? "-" : fmt(row.puan, 1)}</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

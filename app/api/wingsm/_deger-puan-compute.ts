@@ -182,6 +182,7 @@ export type ImeiSaleRow = {
   tarih: string;
   isReturn: boolean;
   imeis: string[];
+  malSinif: string; // normalize edilmiş sınıf kodu (ör. "1el", "2el")
 };
 
 function extractImeis(row: any): string[] {
@@ -297,20 +298,18 @@ export async function computeAndSaveDegerPuanReport(input: {
 
     for (const depotResult of depotResults) {
       for (const row of depotResult.rows) {
+        // Tüm satırlar (IMEI'siz olanlar dahil) hafif kayıt olarak döner: yarışma hesapları sınıf + IMEI'ye bakar.
         if (input.collectImeis) {
-          const imeis = extractImeis(row);
-
-          if (imeis.length > 0) {
-            imeiRows.push({
-              branchLabel: depotResult.branchLabel,
-              saticiKod: String(row?.SaticiKod ?? "").trim(),
-              saticiAdi: String(row?.SaticiAdI ?? "").trim(),
-              malAd: String(row?.MalAd ?? ""),
-              tarih: String(row?.Tarih ?? ""),
-              isReturn: Number(row?.MalMiktarI ?? 0) < 0,
-              imeis,
-            });
-          }
+          imeiRows.push({
+            branchLabel: depotResult.branchLabel,
+            saticiKod: String(row?.SaticiKod ?? "").trim(),
+            saticiAdi: String(row?.SaticiAdI ?? "").trim(),
+            malAd: String(row?.MalAd ?? ""),
+            tarih: String(row?.Tarih ?? ""),
+            isReturn: Number(row?.MalMiktarI ?? 0) < 0,
+            imeis: extractImeis(row),
+            malSinif: rowClassCode(row),
+          });
         }
 
         // İADE: WingSM'in kendi satış ekranında bu satırlar miktarı (-1 gibi)

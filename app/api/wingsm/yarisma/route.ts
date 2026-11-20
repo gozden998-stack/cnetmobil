@@ -12,7 +12,7 @@ import { NextRequest } from "next/server";
 import { getPool, json, requireAdminSession } from "@/app/api/wingsm/score-rules/_shared";
 import { DegerPuanInputError } from "@/app/api/wingsm/_deger-puan-compute";
 
-import { computeLeague, getLatestResult, getLeagueConfig, isIsoDate, saveLeagueConfig } from "./_yarisma";
+import { computeLeague, computeManagerLeague, getDegerPuanTargets, getLatestResult, getLeagueConfig, getYarismaTargets, isIsoDate, mudurLeagueId, saveLeagueConfig, saveYarismaTargets, validateTargets } from "./_yarisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,6 +34,10 @@ export async function GET(request: NextRequest) {
       success: true,
       config,
       result: await getLatestResult(pool, config.id, "test"),
+      mudur: await getLatestResult(pool, mudurLeagueId(config), "test"),
+      // Yarışmaya özel kişi hedefleri + (başlangıç önerisi olarak) Değer Puan hedefleri
+      targets: await getYarismaTargets(pool, config.id),
+      degerPuanTargets: await getDegerPuanTargets(pool, config.countFrom.slice(0, 7)),
       published: published ? { computedAt: published.computedAt, range: published.range ?? null } : null,
     });
   } catch (error) {
@@ -78,16 +82,41 @@ export async function POST(request: NextRequest) {
         config.bonusPoints = bonus;
       }
 
+      if (body.mudurCarpan !== undefined) {
+        if (!["karekok", "oransal", "yok"].includes(body.mudurCarpan)) return json({ success: false, error: "Geçersiz çarpan yöntemi." }, 400);
+
+        config.mudurCarpan = body.mudurCarpan;
+      }
+
       await saveLeagueConfig(pool, config);
 
       return json({ success: true, config });
+    }
+
+    if (body?.action === "hedefKaydet") {
+      const checked = validateTargets(body.rows);
+
+      if (!checked.ok) return json({ success: false, error: checked.error }, 400);
+
+      await saveYarismaTargets(pool, config.id, checked.rows);
+
+      return json({ success: true, targets: await getYarismaTargets(pool, config.id) });
     }
 
     if (body?.action === "hesapla") {
       // TEST sonucu: mağazalara GÖRÜNMEZ (mağazalar yalnız otomatik 12:30 sonucunu görür).
       const result = await computeLeague(pool, config, "test");
 
-      return json({ ...result, success: true });
+      // Mağaza müdürleri yarışması da aynı Hesapla ile (TEST) hesaplanır; biri hata verse diğeri etkilenmez.
+      let mudurError: string | null = null;
+
+      try {
+        await computeManagerLeague(pool, config, "test");
+      } catch (error) {
+        mudurError = error instanceof Error ? error.message : String(error);
+      }
+
+      return json({ ...result, success: true, mudurError });
     }
 
     return json({ success: false, error: "Bilinmeyen işlem." }, 400);
