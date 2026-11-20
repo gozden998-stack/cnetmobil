@@ -13,7 +13,7 @@ import { getPool, json, requireAdminSession } from "@/app/api/wingsm/score-rules
 import { DegerPuanInputError } from "@/app/api/wingsm/_deger-puan-compute";
 
 import { hasMudurPassword, setMudurPassword, validatePassword } from "./_mudur-erisim";
-import { computeLeague, computeManagerLeague, getDegerPuanTargets, getLatestResult, getLeagueConfig, getYarismaTargets, isIsoDate, mudurLeagueId, saveLeagueConfig, saveYarismaTargets, validateTargets } from "./_yarisma";
+import { computeLeague, computeManagerLeague, getDegerPuanTargets, getLatestResult, getLeagueConfig, getStockImeis, getYarismaTargets, isIsoDate, mudurLeagueId, parseImeiList, saveLeagueConfig, saveStockImeis, saveYarismaTargets, validateTargets } from "./_yarisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +39,8 @@ export async function GET(request: NextRequest) {
       // Yarışmaya özel kişi hedefleri + (başlangıç önerisi olarak) Değer Puan hedefleri
       // Mağaza müdürleri sekmesi şifresi belirlenmiş mi (şifrenin kendisi/hash'i HİÇBİR cevapta dönmez)
       mudurSifreVar: await hasMudurPassword(pool, mudurLeagueId(config)),
+      // Yarışmanın stok cihaz IMEI listesi (yalnız yönetici görür)
+      stokImeiler: Array.from(await getStockImeis(pool, config.id)).sort(),
       targets: await getYarismaTargets(pool, config.id),
       degerPuanTargets: await getDegerPuanTargets(pool, config.countFrom.slice(0, 7)),
       published: published ? { computedAt: published.computedAt, range: published.range ?? null } : null,
@@ -94,6 +96,25 @@ export async function POST(request: NextRequest) {
       await saveLeagueConfig(pool, config);
 
       return json({ success: true, config });
+    }
+
+    if (body?.action === "stokImeiKaydet") {
+      const text = String(body.metin ?? "");
+
+      if (text.length > 200_000) return json({ success: false, error: "Liste çok uzun." }, 400);
+
+      const parsed = parseImeiList(text);
+
+      if (parsed.valid.length > 5000) return json({ success: false, error: "En fazla 5000 IMEI girilebilir." }, 400);
+
+      // Geçersiz satır varsa hiçbir şey kaydedilmez: yönetici düzeltsin (sessizce eksik kalmasın)
+      if (parsed.invalid.length > 0) {
+        return json({ success: false, error: `${parsed.invalid.length} satır geçerli IMEI (15 hane) değil: ${parsed.invalid.slice(0, 5).join(", ")}${parsed.invalid.length > 5 ? " ..." : ""}`, invalid: parsed.invalid.slice(0, 50) }, 400);
+      }
+
+      await saveStockImeis(pool, config.id, parsed.valid);
+
+      return json({ success: true, count: parsed.valid.length });
     }
 
     if (body?.action === "mudurSifre") {

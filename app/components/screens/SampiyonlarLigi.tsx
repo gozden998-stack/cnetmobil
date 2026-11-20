@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import SampiyonlarLigiSonuc, { MudurKarti } from "./SampiyonlarLigiSonuc";
 import SampiyonlarLigiMudur from "./SampiyonlarLigiMudur";
 import YarismaHedefleri from "./YarismaHedefleri";
+import YarismaStokListesi from "./YarismaStokListesi";
 
 type Row = Record<string, any>;
 
@@ -20,7 +21,8 @@ export default function SampiyonlarLigi() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [openPerson, setOpenPerson] = useState<string | null>(null);
-  const [view, setView] = useState<"yonetim" | "hedefler" | "magaza">("yonetim");
+  const [view, setView] = useState<"yonetim" | "hedefler" | "stok" | "magaza">("yonetim");
+  const [stokImeiler, setStokImeiler] = useState<string[]>([]);
   const [targets, setTargets] = useState<Row[]>([]);
   const [degerPuanTargets, setDegerPuanTargets] = useState<Row[]>([]);
   // Önizleme kaynağı: "test" = senin Hesapla sonucun, "yayin" = mağazaların şu an gördüğü (12:30 otomatik)
@@ -43,6 +45,7 @@ export default function SampiyonlarLigi() {
       setPublished(payload.published ?? null);
       setMudur(payload.mudur ?? null);
       setMudurSifreVar(Boolean(payload.mudurSifreVar));
+      setStokImeiler(Array.isArray(payload.stokImeiler) ? payload.stokImeiler : []);
       setTargets(Array.isArray(payload.targets) ? payload.targets : []);
       setDegerPuanTargets(Array.isArray(payload.degerPuanTargets) ? payload.degerPuanTargets : []);
     } catch (e: any) {
@@ -138,6 +141,7 @@ export default function SampiyonlarLigi() {
           [
             ["yonetim", "Yönetim (Hesapla)"],
             ["hedefler", "Hedefler"],
+            ["stok", "Stok cihaz listesi"],
             ["magaza", "Mağaza görünümü (önizleme)"],
           ] as const
         ).map(([id, label]) => (
@@ -187,10 +191,17 @@ export default function SampiyonlarLigi() {
           </div>
           {previewTab === "mudur" ? <SampiyonlarLigiMudur key={`m-${previewKaynak}`} kaynak={previewKaynak} /> : <SampiyonlarLigiSonuc key={previewKaynak} kaynak={previewKaynak} />}
         </>
+      ) : view === "stok" ? (
+        <YarismaStokListesi key={stokImeiler.length} imeiler={stokImeiler} onSaved={() => void load()} />
       ) : view === "hedefler" ? (
         <YarismaHedefleri key={`${targets.length}-${degerPuanTargets.length}`} targets={targets} degerPuanTargets={degerPuanTargets} onSaved={() => void load()} />
       ) : (
       <>
+      {stokImeiler.length === 0 && (
+        <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-[12px] font-bold text-rose-700">
+          Stok cihaz IMEI listesi BOŞ: stok cihaz bonusu kimseye verilmiyor. &quot;Stok cihaz listesi&quot; sekmesinden IMEI&apos;leri gir.
+        </div>
+      )}
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-[12px] font-bold text-amber-800">
         &quot;Hesapla&quot; bir TEST hesabıdır: sonucu sadece sen görürsün, <b>mağazalar görmez</b>, resmi Değer Puan raporuna da yazılmaz. Mağazalar yalnız her gün 12:30&apos;da otomatik hesaplanan sonucu görür.
         Mağazalardaki son yayın:{" "}
@@ -235,7 +246,7 @@ export default function SampiyonlarLigi() {
           </button>
           <span className={`text-[11px] font-black ${mudurSifreVar ? "text-emerald-600" : "text-rose-600"}`}>{mudurSifreVar ? "Şifre belirli" : "Şifre YOK (mağazalar giremez)"}</span>
         </div>
-        <div className="text-[13px] font-semibold text-slate-500">Stok cihaz bonusu: +{config?.bonusPoints ?? 125} puan / cihaz</div>
+        <div className="text-[13px] font-semibold text-slate-500">Stok cihaz bonusu: +{config?.bonusPoints ?? 125} puan / cihaz ({stokImeiler.length} IMEI listesi)</div>
         <button type="button" disabled={busy || !config} onClick={() => void hesapla()} className="ml-auto rounded-xl bg-violet-600 px-6 py-2.5 text-[14px] font-black text-white hover:bg-violet-700 disabled:opacity-50">
           {busy ? "Hesaplanıyor..." : "Hesapla"}
         </button>

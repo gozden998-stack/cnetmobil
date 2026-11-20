@@ -4,7 +4,8 @@
 //
 // Kurallar (kullanıcının duyurusu + açıklamaları):
 //  - Puan = Değer Puan motorunun kişi puanı (çarpanlı puan), hedef = Değer Puan Hedefler sekmesindeki kişi hedefi.
-//  - Stok cihaz (stock_devices'te kayıtlı IMEI'li cihaz) satan kişinin puanına cihaz başına +bonus (varsayılan 125) eklenir.
+//  - Stok cihaz = YÖNETİCİNİN yarışma için girdiği IMEI LİSTESİ (yarisma_stock_imeis). Listedeki IMEI'li cihazı satan kişinin
+//    puanına cihaz başına +bonus (varsayılan 125) eklenir. Liste boşsa bonus VERİLMEZ (eskiden tüm stock_devices sayılıyordu: yanlıştı).
 //  - Sıralama: hedef yüzdesi (toplam puan ÷ hedef). Mağaza müdürleri ve hedefi olmayanlar sıralamaya girmez.
 //  - Ödül: 1. 1 gr altın, 2. 1/2 gr altın, 3. 2000 TL, 4. 1000 TL.
 //  - Ekip kuralı: ilk 2 kişi AYNI ekipten olmalı ((Cadde+Saray) veya (Kapaklı+Meydan)). Olmazsa 2. ödül, 1.'nin
@@ -532,6 +533,16 @@ export async function ensureYarismaTables(pool: Pool) {
     )
   `);
 
+  // Yarışmanın "stok cihaz" IMEI listesi (yönetici girer): bonus yalnız bu IMEI'ler için verilir
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.yarisma_stock_imeis (
+      league_id TEXT NOT NULL,
+      imei TEXT NOT NULL,
+      added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (league_id, imei)
+    )
+  `);
+
   // Gün gün YAYINLANAN raporlar (mağazalar gün seçiciyle geçmiş günleri görür). Yalnız otomatik 12:30 "yayın" sonuçları yazılır.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS public.yarisma_history (
@@ -569,6 +580,66 @@ async function archivePublished(pool: Pool, id: string, payload: unknown) {
      ON CONFLICT (league_id, publish_date) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()`,
     [id, todayInTurkey(), JSON.stringify(payload)]
   );
+}
+
+// ------------------------------------------------------------------
+// STOK CİHAZ IMEI LİSTESİ (yarışmaya özel)
+// ------------------------------------------------------------------
+
+// Serbest metinden (satır/boşluk/virgül/noktalı virgül ayraçlı) IMEI listesi çıkarır. 15 hane değilse "invalid".
+export function parseImeiList(raw: unknown): { valid: string[]; invalid: string[] } {
+  const seen = new Set<string>();
+  const valid: string[] = [];
+  const invalid: string[] = [];
+
+  for (const token of String(raw ?? "").split(/[\s,;]+/)) {
+    const clean = token.replace(/\D/g, "");
+
+    if (!token.trim()) continue;
+
+    if (/^\d{15}$/.test(clean)) {
+      if (!seen.has(clean)) {
+        seen.add(clean);
+        valid.push(clean);
+      }
+    } else {
+      invalid.push(token.trim());
+    }
+  }
+
+  return { valid, invalid };
+}
+
+export async function getStockImeis(pool: Pool, leagueId: string): Promise<Set<string>> {
+  await ensureYarismaTables(pool);
+
+  const result = await pool.query(`SELECT imei FROM public.yarisma_stock_imeis WHERE league_id = $1`, [leagueId]);
+
+  return new Set<string>(result.rows.map((row) => String(row.imei)));
+}
+
+// Listeyi TAMAMEN değiştirir (boş liste = stok cihaz bonusu verilmez).
+export async function saveStockImeis(pool: Pool, leagueId: string, imeis: string[]) {
+  await ensureYarismaTables(pool);
+
+  const client = await pool.connect();
+
+  try {
+    await client.query("BEGIN");
+    await client.query(`DELETE FROM public.yarisma_stock_imeis WHERE league_id = $1`, [leagueId]);
+
+    if (imeis.length) {
+      await client.query(`INSERT INTO public.yarisma_stock_imeis (league_id, imei) SELECT $1, unnest($2::text[]) ON CONFLICT DO NOTHING`, [leagueId, imeis]);
+    }
+
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 // ------------------------------------------------------------------
@@ -714,11 +785,10 @@ export async function computeLeague(pool: Pool, config: LeagueConfig, kind: Resu
   const report: any = await computeAndSaveDegerPuanReport({ bastar: config.countFrom, bittar: to, skipSave: true, collectImeis: true });
   const imeiRows: ImeiSaleRow[] = Array.isArray(report.imeiRows) ? report.imeiRows : [];
 
-  // Stok cihaz: yalnız bu satışlardaki IMEI'ler için stock_devices'e bakılır (tek sorgu)
+  // Stok cihaz: yönetici listesindeki IMEI'ler (yarisma_stock_imeis). Liste boşsa bonus verilmez.
   const allImeis = Array.from(new Set(imeiRows.flatMap((row) => row.imeis)));
-  const stockImeis = new Set<string>(
-    allImeis.length ? (await pool.query(`SELECT imei FROM public.stock_devices WHERE imei = ANY($1::text[])`, [allImeis])).rows.map((row) => String(row.imei)) : []
-  );
+  const stockList = await getStockImeis(pool, config.id);
+  const stockImeis = new Set<string>(allImeis.filter((imei) => stockList.has(imei)));
 
   const period = config.countFrom.slice(0, 7);
   const targetsByName = new Map<string, PersonnelTargetEntry[]>();
@@ -799,6 +869,7 @@ export async function computeLeague(pool: Pool, config: LeagueConfig, kind: Resu
     prizes,
     precondition,
     stockDeviceCount: standing.reduce((sum, person) => sum + person.stokAdet, 0),
+    stockListCount: stockList.size,
     unmatchedStockNote: null,
   };
 
@@ -848,9 +919,8 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
   const baseRows: ImeiSaleRow[] = Array.isArray(baseReport?.imeiRows) ? baseReport.imeiRows : [];
   const curRows: ImeiSaleRow[] = Array.isArray(curReport?.imeiRows) ? curReport.imeiRows : [];
   const allImeis = Array.from(new Set([...baseRows, ...curRows].flatMap((row) => row.imeis)));
-  const stockImeis = new Set<string>(
-    allImeis.length ? (await pool.query(`SELECT imei FROM public.stock_devices WHERE imei = ANY($1::text[])`, [allImeis])).rows.map((row) => String(row.imei)) : []
-  );
+  const stockList = await getStockImeis(pool, config.id);
+  const stockImeis = new Set<string>(allImeis.filter((imei) => stockList.has(imei)));
 
   // Mağaza müdürleri: Hedefler tablosunda "müdür" işaretli kişiler (mağazaya göre)
   const managersByBranch = new Map<string, string[]>();
