@@ -35,6 +35,8 @@ export type LeagueConfig = {
   //   "oransal": çarpan = mağazanın 1-16 satışı ÷ ortalama  (puan = mutlak artışla orantılı, büyük mağaza avantajlı)
   //   "yok": çarpan 1 (ham yüzde)
   mudurCarpan: "karekok" | "oransal" | "yok";
+  // Son otomatik yayın günü (dahil). Bu günden sonra rapor yayınlanmaz; nihai sonucu yönetici açıklar.
+  publishUntil: string;
 };
 
 export const DEFAULT_LEAGUE: LeagueConfig = {
@@ -57,6 +59,7 @@ export const DEFAULT_LEAGUE: LeagueConfig = {
     "Kapaklı-Meydan": ["CMR KAPAKLI", "CMR MERKEZ"],
   },
   mudurCarpan: "karekok",
+  publishUntil: "2026-11-28",
 };
 
 // Cihaz sınıfları (Personel Gidişat "Cihaz Adet" ile aynı): 2el, 1el, 1el tablet, 4el
@@ -324,8 +327,15 @@ export function istanbulDateAndMinutes(now: Date): { date: string; minutes: numb
   return { date: `${parts.year}-${parts.month}-${parts.day}`, minutes: Number(parts.hour) * 60 + Number(parts.minute) };
 }
 
-export function isAutoRunDayForLeague(todayIso: string, config: Pick<LeagueConfig, "startDate" | "endDate">): boolean {
-  return todayIso >= addDays(config.startDate, 1) && todayIso <= addDays(config.endDate, 1);
+// Son otomatik yayın günü: ayın 28'i (publishUntil) ya da yarışma bitişinden sonraki gün, hangisi önceyse.
+export function lastPublishDay(config: Pick<LeagueConfig, "endDate" | "publishUntil">): string {
+  const closing = addDays(config.endDate, 1);
+
+  return config.publishUntil && config.publishUntil < closing ? config.publishUntil : closing;
+}
+
+export function isAutoRunDayForLeague(todayIso: string, config: Pick<LeagueConfig, "startDate" | "endDate" | "publishUntil">): boolean {
+  return todayIso >= addDays(config.startDate, 1) && todayIso <= lastPublishDay(config);
 }
 
 // Mağaza girişlerine giden SADELEŞTİRİLMİŞ görünüm: yalnız sıralamaya girenler; hedef rakamı, satıcı kodu, IMEI yok.
@@ -518,7 +528,43 @@ export async function ensureYarismaTables(pool: Pool) {
     )
   `);
 
+  // Gün gün YAYINLANAN raporlar (mağazalar gün seçiciyle geçmiş günleri görür). Yalnız otomatik 12:30 "yayın" sonuçları yazılır.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS public.yarisma_history (
+      league_id TEXT NOT NULL,
+      publish_date DATE NOT NULL,
+      payload JSONB NOT NULL,
+      computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (league_id, publish_date)
+    )
+  `);
+
+  // Tek seferlik/idempotent: önceden yayınlanmış son sonuç, yayınlandığı günün raporu olarak arşive alınır.
+  await pool.query(`
+    INSERT INTO public.yarisma_history (league_id, publish_date, payload, computed_at)
+    SELECT league_id, (computed_at AT TIME ZONE 'Europe/Istanbul')::date, payload, computed_at
+    FROM public.yarisma_results WHERE kind = 'yayin'
+    ON CONFLICT (league_id, publish_date) DO NOTHING
+  `);
+
   tablesReady = true;
+}
+
+// Bir YAYIN gününde (Türkiye tarihi) yayınlanan rapor (yoksa null).
+export async function getPublishedForDay(pool: Pool, id: string, gun: string) {
+  await ensureYarismaTables(pool);
+
+  const row = (await pool.query(`SELECT payload, computed_at FROM public.yarisma_history WHERE league_id = $1 AND publish_date = $2::date`, [id, gun])).rows[0];
+
+  return row ? { ...(row.payload as Record<string, unknown>), computedAt: row.computed_at } : null;
+}
+
+async function archivePublished(pool: Pool, id: string, payload: unknown) {
+  await pool.query(
+    `INSERT INTO public.yarisma_history (league_id, publish_date, payload, computed_at) VALUES ($1, $2::date, $3::jsonb, now())
+     ON CONFLICT (league_id, publish_date) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()`,
+    [id, todayInTurkey(), JSON.stringify(payload)]
+  );
 }
 
 // ------------------------------------------------------------------
@@ -758,6 +804,9 @@ export async function computeLeague(pool: Pool, config: LeagueConfig, kind: Resu
     [config.id, kind, JSON.stringify(payload)]
   );
 
+  // Otomatik yayın: o günün raporu arşive de yazılır (gün seçici için)
+  if (kind === "yayin") await archivePublished(pool, config.id, payload);
+
   return { ...payload, computedAt: new Date().toISOString() };
 }
 
@@ -860,6 +909,8 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
      ON CONFLICT (league_id, kind) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()`,
     [mudurLeagueId(config), kind, JSON.stringify(payload)]
   );
+
+  if (kind === "yayin") await archivePublished(pool, mudurLeagueId(config), payload);
 
   return { ...payload, computedAt: new Date().toISOString() };
 }

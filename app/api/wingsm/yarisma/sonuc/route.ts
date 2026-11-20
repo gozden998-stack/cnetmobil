@@ -9,7 +9,7 @@ import { NextRequest } from "next/server";
 
 import { getPool, json, requireValidSession } from "../../score-rules/_shared";
 import { CMR_BRANCH_LABELS } from "../../gidisat/_gidisat";
-import { getLatestResult, getLeagueConfig, mudurLeagueId, toStoreView } from "../_yarisma";
+import { addDays, getLatestResult, getLeagueConfig, getPublishedForDay, isAutoRunDayForLeague, isIsoDate, lastPublishDay, mudurLeagueId, toStoreView, todayInTurkey } from "../_yarisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,8 +36,30 @@ export async function GET(request: NextRequest) {
     const config = await getLeagueConfig(pool);
     // Mağazalar YALNIZ otomatik (12:30) "yayın" sonucunu görür. Yönetici ?kaynak=test ile kendi Hesapla (test) sonucunu önizler.
     const kaynak = isAdmin && request.nextUrl.searchParams.get("kaynak") === "test" ? "test" : "yayin";
-    const result = await getLatestResult(pool, config.id, kaynak);
-    const mudurRaw: any = await getLatestResult(pool, mudurLeagueId(config), kaynak);
+    // GÜN SEÇİCİ (yalnız yayın): ?gun=YYYY-MM-DD o gün YAYINLANAN raporu getirir; verilmezse / bugünse bugünün raporu.
+    // Bugünün raporu (12:30 otomatik yayını) henüz yoksa "bekleniyor": eski rakamlar gösterilmez.
+    const today = todayInTurkey();
+    const gunParam = request.nextUrl.searchParams.get("gun");
+    const gun = isIsoDate(gunParam) && gunParam < today ? gunParam : today;
+    const minGun = addDays(config.startDate, 1);
+
+    const result = kaynak === "test" ? await getLatestResult(pool, config.id, "test") : await getPublishedForDay(pool, config.id, gun);
+    const mudurRaw: any = kaynak === "test" ? await getLatestResult(pool, mudurLeagueId(config), "test") : await getPublishedForDay(pool, mudurLeagueId(config), gun);
+    // Bugünün raporu yoksa: yayın günüyse "bekleniyor"; yayın süresi (ayın 28'i) bittiyse "donemSonu" (yeni rapor gelmeyecek).
+    const bugunRaporYok = gun === today && !result;
+    const sonYayinGunu = lastPublishDay(config);
+    const gunBilgisi =
+      kaynak === "test"
+        ? {}
+        : {
+            gun,
+            today,
+            minGun,
+            sonYayinGunu,
+            bekleniyor: bugunRaporYok && isAutoRunDayForLeague(today, config),
+            donemSonu: bugunRaporYok && today > sonYayinGunu,
+            bulunamadi: gun !== today && !result,
+          };
     // Mağaza müdürleri yarışması (mağaza bazlı sayılar; kişisel veri yok)
     const mudur =
       mudurRaw && Array.isArray(mudurRaw.rows)
@@ -53,10 +75,11 @@ export async function GET(request: NextRequest) {
         myBranch,
         kaynak,
         mudur,
+        ...gunBilgisi,
       });
     }
 
-    return json({ ...toStoreView(result as Record<string, any>), prizeList: config.prizes, myBranch, kaynak, mudur });
+    return json({ ...toStoreView(result as Record<string, any>), prizeList: config.prizes, myBranch, kaynak, mudur, ...gunBilgisi });
   } catch (error) {
     console.error("YARISMA_SONUC_ERROR:", error);
 

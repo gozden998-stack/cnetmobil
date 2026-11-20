@@ -1,9 +1,12 @@
 "use client";
 
 // CNETMOBIL - CMR "Şampiyonlar Ligi" - mağaza/personel görünümü (salt okunur, ana sayfada)
-// Sıralama her gün 10:00'dan sonra güncellenir. Tüm CMR mağazaları herkesin sıralamasını görür.
+// Sıralama her gün 12:30'da yayınlanır; yeni güne geçince yayın gelene kadar "Rapor bekleniyor" görünür.
+// GÜN SEÇİCİ (Bugün / Dün / Önceki Gün / takvim) o gün YAYINLANAN raporu gösterir. Tüm CMR mağazaları herkesin sıralamasını görür.
 
 import React, { useCallback, useEffect, useState } from "react";
+
+import { DayPicker, dayPickLabel, dayPickToGun, formatIsoDate, istanbulToday, type DayPick } from "./degerPuanGunSecici";
 
 type Row = Record<string, any>;
 
@@ -16,10 +19,14 @@ export default function SampiyonlarLigiSonuc({ kaynak = "yayin" }: { kaynak?: "y
   const [data, setData] = useState<Row | null>(null);
   const [error, setError] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [pick, setPick] = useState<DayPick>({ kind: "bugun" });
+  const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     try {
-      const response = await fetch(`/api/wingsm/yarisma/sonuc${kaynak === "test" ? "?kaynak=test" : ""}`, { cache: "no-store", credentials: "same-origin" });
+      const gun = kaynak === "test" ? null : dayPickToGun(pick);
+      const query = kaynak === "test" ? "?kaynak=test" : gun ? `?gun=${gun}` : "";
+      const response = await fetch(`/api/wingsm/yarisma/sonuc${query}`, { cache: "no-store", credentials: "same-origin" });
       const payload = await response.json().catch(() => null);
 
       if (!payload?.success) throw new Error(payload?.error || `HTTP ${response.status}`);
@@ -28,10 +35,13 @@ export default function SampiyonlarLigiSonuc({ kaynak = "yayin" }: { kaynak?: "y
       setError("");
     } catch (e: any) {
       setError(e?.message || "Yarışma bilgisi alınamadı.");
+    } finally {
+      setLoading(false);
     }
-  }, [kaynak]);
+  }, [kaynak, pick]);
 
   useEffect(() => {
+    setLoading(true);
     void load();
 
     // Rapor yayınlanınca ekran kendiliğinden yenilensin (2 dakikada bir, sessiz)
@@ -56,10 +66,20 @@ export default function SampiyonlarLigiSonuc({ kaynak = "yayin" }: { kaynak?: "y
   return (
     <div className="space-y-4">
       <div className="rounded-2xl border border-amber-200 bg-gradient-to-r from-amber-50 via-white to-amber-50 p-5">
-        <div className="text-[20px] font-black text-slate-900">🏆 {config.title || "Şampiyonlar Ligi"}</div>
-        <div className="mt-1 text-[13px] font-semibold text-slate-600">
-          {dateTr(config.startDate)} - {dateTr(config.endDate)} · <b>{remaining} gün kaldı</b>
-          {data.computedAt ? ` · Son güncelleme: ${new Date(data.computedAt).toLocaleString("tr-TR")}` : ""}
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <div className="text-[20px] font-black text-slate-900">🏆 {config.title || "Şampiyonlar Ligi"}</div>
+            <div className="mt-1 text-[13px] font-semibold text-slate-600">
+              {dateTr(config.startDate)} - {dateTr(config.endDate)} · <b>{remaining} gün kaldı</b>
+              {data.computedAt && !data.bekleniyor ? ` · Yayın: ${new Date(data.computedAt).toLocaleString("tr-TR")}` : ""}
+            </div>
+          </div>
+          {kaynak !== "test" && (
+            <div>
+              <div className="mb-1 text-[10px] font-bold text-slate-500">Gün</div>
+              <DayPicker label={dayPickLabel(pick)} disabled={loading} minDate={data.minGun} maxDate={istanbulToday()} onSelect={setPick} />
+            </div>
+          )}
         </div>
         <div className="mt-2 text-[12px] font-semibold text-slate-500">
           Puan = Değer Puan + stok cihaz satışı başına +{config.bonusPoints ?? 125} puan. Sıralama, kişi hedefinin yüzde kaçı tamamlandığına göre. İlk iki ödül aynı ekipten (Cadde-Saray veya Kapaklı-Meydan) olmalıdır.
@@ -76,12 +96,37 @@ export default function SampiyonlarLigiSonuc({ kaynak = "yayin" }: { kaynak?: "y
         ))}
       </div>
 
-      {data.hasResult === false ? (
+      {data.donemSonu ? (
+        <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl bg-white px-6 py-10 text-center shadow-sm">
+          <div className="text-5xl">📢</div>
+          <div className="mt-3 text-2xl font-black text-[#1b2559]">Yayın sona erdi</div>
+          <p className="mt-2 max-w-md text-sm font-semibold text-slate-500">
+            Şampiyonlar Ligi sıralaması {data.sonYayinGunu ? formatIsoDate(data.sonYayinGunu) : "ayın 28'i"} tarihine kadar yayınlandı. Nihai sonuç yarışma bitince yönetici tarafından gruptan paylaşılacaktır.
+          </p>
+          <p className="mt-3 text-xs font-semibold text-slate-400">Son yayınlanan raporu görmek için sağ üstteki seçiciden günü seçebilirsiniz.</p>
+        </div>
+      ) : data.bekleniyor ? (
+        <div className="flex min-h-[220px] flex-col items-center justify-center rounded-2xl bg-white px-6 py-10 text-center shadow-sm">
+          <div className="text-5xl">⏳</div>
+          <div className="mt-3 text-2xl font-black text-[#1b2559]">Rapor bekleniyor</div>
+          <p className="mt-2 max-w-md text-sm font-semibold text-slate-500">Şampiyonlar Ligi sıralaması her gün saat 12:30&apos;da otomatik yayınlanır; yayınlanınca burada görünecek.</p>
+          <p className="mt-3 text-xs font-semibold text-slate-400">Önceki günün raporunu görmek için sağ üstteki seçiciden &quot;Dün&quot;ü seçebilirsiniz.</p>
+        </div>
+      ) : data.bulunamadi ? (
+        <div className="rounded-2xl border border-slate-200 bg-white px-5 py-8 text-center text-sm font-bold text-slate-500">
+          {data.gun ? `${formatIsoDate(data.gun)} tarihi için` : "Bu tarih için"} kayıtlı rapor bulunamadı.
+        </div>
+      ) : data.hasResult === false ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center text-[13px] font-semibold text-slate-500">
-          Sıralama ilk hesaplandığında burada görünecek. Rapor her gün 12:30&apos;dan sonra güncellenir.
+          Sıralama ilk hesaplandığında burada görünecek. Rapor her gün 12:30&apos;da yayınlanır.
         </div>
       ) : (
         <>
+          {data.gun && data.today && data.gun !== data.today && data.range && (
+            <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-900">
+              {formatIsoDate(data.gun)} tarihli rapor: {dateTr(data.range.from)} - {dateTr(data.range.to)} arası
+            </div>
+          )}
           {pre && (
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="mb-1 flex items-center justify-between text-[13px] font-black text-slate-800">
