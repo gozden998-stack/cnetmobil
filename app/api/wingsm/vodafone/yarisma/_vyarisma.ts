@@ -5,7 +5,7 @@
 // Kurallar (kullanıcının duyurusu + açıklamaları):
 //  - Puan kalemleri (kişi bazlı):
 //      GROSS  = Vodafone mağazalarında, sınıfı 5AK olan satırlardan ürün adında FATURALI / RED / KONTÖRLÜ / REDBOX geçenler   -> 1 puan
-//      BAZ    = sınıfı 5AK olan satırlardan ürün adında MCCM geçenler                                                -> 0,5 puan
+//      BAZ    = sınıfı 5AK olan satırlardan ürün adında MCCM ya da PRE-TO-POS TARİFE geçenler                         -> 0,5 puan
 //      TEKİL  = WingSM TEMLİKLİ satış listesindeki TÜM 1el (sıfır cihaz) satırları                                  -> 2,5 puan
 //      SAMSUNG TEKİL          = o satırlardan ürünü Samsung olanlar, tekil puanına EK                               -> +1,5 puan
 //      SAMSUNG PREMIUM TEKİL  = Samsung S serisi / Fold / Flip olanlar (Samsung sayılır), ayrıca EK                  -> +1 puan
@@ -81,13 +81,13 @@ export function foldTr(value: unknown): string {
 
 export type Kalem = "gross" | "baz" | "tekil" | "samsung" | "premium";
 
-// 5AK satırı: DEVİR ve "MCCM'Lİ CİHAZ" satırları HİÇ SAYILMAZ ("haric", kullanıcı kararı); MCCM -> baz; FATURALI / RED / REDBOX / KONTÖRLÜ -> gross;
+// 5AK satırı: DEVİR ve "MCCM'Lİ CİHAZ" satırları HİÇ SAYILMAZ ("haric", kullanıcı kararı); MCCM ya da PRE-TO-POS -> baz; FATURALI / RED / REDBOX / KONTÖRLÜ -> gross;
 // hiçbirine uymayan null (tanı listesine düşer).
 export function classify5ak(malAd: unknown): "gross" | "baz" | "haric" | null {
   const name = foldTr(malAd);
 
   if (/devir/.test(name) || /mccm[^a-z0-9]*li[^a-z0-9]*cihaz/.test(name)) return "haric";
-  if (/mccm/.test(name)) return "baz";
+  if (/mccm/.test(name) || /pre[^a-z0-9]*to[^a-z0-9]*pos/.test(name)) return "baz";
   if (/faturali|kontorlu|red ?box/.test(name) || /(^|[^a-z0-9])red([^a-z0-9]|$)/.test(name)) return "gross";
 
   return null;
