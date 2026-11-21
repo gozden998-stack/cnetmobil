@@ -25,9 +25,9 @@
 import type { Pool } from "pg";
 
 import { toWingsmDate } from "../../_deger-puan-compute";
-import { personnelIdentityKey } from "../../_deger-puan-personnel";
-import { addDays, archivePublished, ensureYarismaTables, todayInTurkey } from "../../yarisma/_yarisma";
-import { VODAFONE_DEPOTS, fetchDepotLists, normalizeClass } from "../_vodafone";
+import { normalizeName, personnelIdentityKey } from "../../_deger-puan-personnel";
+import { addDays, archivePublished, assignManagerPrizes, buildManagerStanding, ensureYarismaTables, todayInTurkey, type ManagerRow } from "../../yarisma/_yarisma";
+import { VODAFONE_DEPOTS, fetchDepotLists, loadTargets, normalizeClass } from "../_vodafone";
 
 export type VdfPoints = { gross: number; baz: number; tekil: number; samsung: number; premium: number };
 
@@ -490,6 +490,150 @@ export async function computeVdfLeague(pool: Pool, config: VdfLeagueConfig, kind
   );
 
   if (kind === "yayin") await archivePublished(pool, config.id, payload);
+
+  return { ...payload, computedAt: new Date().toISOString() };
+}
+
+
+// ------------------------------------------------------------------
+// MAĞAZA MÜDÜRLERİ YARIŞMASI (Vodafone, aynı tarihler, mağaza bazlı)
+// ------------------------------------------------------------------
+// Kural (kullanıcı duyurusu): 1-16 Kasım TEKİL cihaz satışı (temlikli 1el) ağırlıklı toplamı:
+//   Samsung (premium olmayan) x1,25  +  Samsung premium (S / Fold / Flip) x1,5  +  diğer marka x1.
+// Aynı kombinasyon 17-30 Kasım'da bu tabanın ÜSTÜNE çıkarılacak. Oran = 17-30 ağırlıklı toplam ÷ 1-16 ağırlıklı toplam;
+// oranı en yüksek mağazanın müdürü: 1. 1 gram altın, 2. 2000 TL. Önkoşul yok. Çarpan yok. Müdürler: Vodafone hedef listesinde
+// "müdür" işaretli kişiler (yoksa "Müdür tanımlı değil"). Sonuç `${id}-mudur` altında kaydedilir; şifreli sekmeden gösterilir.
+// Not: ağırlıklar kalemleri DIŞLAR (premium cihaz 1,5; premium olmayan Samsung 1,25; diğer 1).
+
+export const VDF_MUDUR_WEIGHTS = { samsung: 1.25, premium: 1.5, diger: 1 };
+
+export const vdfMudurLeagueId = (config: Pick<VdfLeagueConfig, "id">) => `${config.id}-mudur`;
+
+const round3 = (value: number) => Math.round(value * 1000) / 1000;
+
+export type VdfMudurBreakdown = { tekil: number; samsung: number; premium: number; diger: number; agirlikli: number };
+
+// Bir deponun temlikli satırlarından 1el cihaz sayıları + ağırlıklı toplam (iade satırı düşer).
+export function weightedTekilByBranch(sales: Array<{ branchLabel: string; temlik: Array<Record<string, unknown>> }>): Map<string, VdfMudurBreakdown> {
+  const out = new Map<string, VdfMudurBreakdown>();
+
+  for (const depot of sales) {
+    const item: VdfMudurBreakdown = { tekil: 0, samsung: 0, premium: 0, diger: 0, agirlikli: 0 };
+
+    for (const row of depot.temlik) {
+      if (foldTr(normalizeClass(row.MalSinif)) !== "1el") continue;
+
+      const qty = qtyOf(row);
+      const kind = classifyTekil(row.MalAd);
+
+      item.tekil += qty;
+
+      if (kind === "premium") {
+        item.premium += qty;
+        item.agirlikli += qty * VDF_MUDUR_WEIGHTS.premium;
+      } else if (kind === "samsung") {
+        item.samsung += qty;
+        item.agirlikli += qty * VDF_MUDUR_WEIGHTS.samsung;
+      } else {
+        item.diger += qty;
+        item.agirlikli += qty * VDF_MUDUR_WEIGHTS.diger;
+      }
+    }
+
+    item.agirlikli = round3(item.agirlikli);
+    out.set(depot.branchLabel, item);
+  }
+
+  return out;
+}
+
+export const VDF_MUDUR_PRIZES = [
+  { rank: 1, label: "1 gram altın" },
+  { rank: 2, label: "2000 TL" },
+];
+
+export type VdfMudurRow = ManagerRow & { baseDetay: VdfMudurBreakdown; curDetay: VdfMudurBreakdown };
+
+export async function computeVdfManagerLeague(pool: Pool, config: VdfLeagueConfig, kind: VdfResultKind = "test", fetcher: typeof fetchDepotLists = fetchDepotLists) {
+  await ensureYarismaTables(pool);
+
+  const monthStart = `${config.startDate.slice(0, 7)}-01`;
+  const baselineTo = addDays(config.startDate, -1);
+  const yesterday = addDays(todayInTurkey(), -1);
+  const to = yesterday < config.endDate ? yesterday : config.endDate;
+
+  if (to < config.startDate) {
+    return { success: true, empty: true, message: "Henüz sayılacak gün yok (rapor dünün verisine kadar hesaplanır).", range: { from: config.startDate, to } };
+  }
+
+  const hasBaseline = baselineTo >= monthStart;
+
+  const fetchRange = (from: string, until: string) =>
+    Promise.all(
+      VODAFONE_DEPOTS.map(async ({ depotCode, branchLabel }) => {
+        try {
+          const lists = await fetcher(depotCode, toWingsmDate(from), toWingsmDate(until), ["temlik"]);
+
+          return { branchLabel, temlik: lists.temlik };
+        } catch (error) {
+          throw new Error(`${branchLabel} (${depotCode}) satışları alınamadı: ${error instanceof Error ? error.message : "bilinmeyen hata"}`);
+        }
+      })
+    );
+
+  const [baseSales, curSales] = await Promise.all([hasBaseline ? fetchRange(monthStart, baselineTo) : Promise.resolve([]), fetchRange(config.startDate, to)]);
+  const baseDetail = weightedTekilByBranch(baseSales);
+  const curDetail = weightedTekilByBranch(curSales);
+  const empty: VdfMudurBreakdown = { tekil: 0, samsung: 0, premium: 0, diger: 0, agirlikli: 0 };
+
+  // Müdürler: Vodafone hedef listesinde "müdür" işaretli kişiler (mağazaya göre)
+  const managersByBranch = new Map<string, string[]>();
+
+  try {
+    const targets = await loadTargets(pool, config.startDate.slice(0, 7));
+
+    for (const person of targets.personnel.filter((item) => item.isManager)) {
+      const key = normalizeName(person.branchLabel);
+      const list = managersByBranch.get(key) ?? [];
+
+      list.push(person.saticiAdi);
+      managersByBranch.set(key, list);
+    }
+  } catch {
+    // Hedef tablosu yoksa müdür adı boş kalır
+  }
+
+  const branches = VODAFONE_DEPOTS.map((depot) => depot.branchLabel);
+  const standing = buildManagerStanding({
+    branches,
+    baseline: new Map(branches.map((label) => [label, (baseDetail.get(label) ?? empty).agirlikli])),
+    current: new Map(branches.map((label) => [label, (curDetail.get(label) ?? empty).agirlikli])),
+    managersByBranch,
+    baselineDays: hasBaseline ? Math.round((Date.parse(`${baselineTo}T00:00:00Z`) - Date.parse(`${monthStart}T00:00:00Z`)) / 86_400_000) + 1 : 0,
+    currentDays: Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${config.startDate}T00:00:00Z`)) / 86_400_000) + 1,
+    carpanMode: "yok",
+  });
+
+  const rows: VdfMudurRow[] = standing.map((row) => ({ ...row, baseDetay: baseDetail.get(row.branchLabel) ?? empty, curDetay: curDetail.get(row.branchLabel) ?? empty }));
+  const prizes = assignManagerPrizes(standing, VDF_MUDUR_PRIZES);
+
+  const payload = {
+    success: true,
+    title: "Vodafone Şampiyonlar Ligi Mağaza Müdürleri Yarışması",
+    agirlik: VDF_MUDUR_WEIGHTS,
+    baselineRange: hasBaseline ? { from: monthStart, to: baselineTo } : null,
+    range: { from: config.startDate, to },
+    rows,
+    prizes,
+  };
+
+  await pool.query(
+    `INSERT INTO public.yarisma_results (league_id, kind, payload, computed_at) VALUES ($1, $2, $3::jsonb, now())
+     ON CONFLICT (league_id, kind) DO UPDATE SET payload = EXCLUDED.payload, computed_at = now()`,
+    [vdfMudurLeagueId(config), kind, JSON.stringify(payload)]
+  );
+
+  if (kind === "yayin") await archivePublished(pool, vdfMudurLeagueId(config), payload);
 
   return { ...payload, computedAt: new Date().toISOString() };
 }

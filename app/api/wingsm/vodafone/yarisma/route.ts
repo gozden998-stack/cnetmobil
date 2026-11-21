@@ -11,8 +11,9 @@ import { NextRequest } from "next/server";
 
 import { getPool, json, requireAdminSession } from "../../score-rules/_shared";
 import { getLatestResult } from "../../yarisma/_yarisma";
+import { hasMudurPassword, setMudurPassword, validatePassword } from "../../yarisma/_mudur-erisim";
 import { VODAFONE_DEPOTS } from "../_vodafone";
-import { computeVdfLeague, getVdfConfig, sanitizeCarpan, saveVdfConfig } from "./_vyarisma";
+import { computeVdfLeague, computeVdfManagerLeague, getVdfConfig, sanitizeCarpan, saveVdfConfig, vdfMudurLeagueId } from "./_vyarisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -33,6 +34,8 @@ export async function GET(request: NextRequest) {
       config,
       stores: VODAFONE_DEPOTS.map((depot) => depot.branchLabel),
       result: await getLatestResult(pool, config.id, "test"),
+      // Mağaza müdürleri sekmesi şifresi belirlenmiş mi (şifrenin kendisi/hash'i HİÇBİR cevapta dönmez)
+      mudurSifreVar: await hasMudurPassword(pool, vdfMudurLeagueId(config)),
       published: published ? { computedAt: published.computedAt, range: published.range ?? null } : null,
     });
   } catch (error) {
@@ -67,10 +70,29 @@ export async function POST(request: NextRequest) {
       return json({ success: true, config: { ...config, carpan: parsed.value } });
     }
 
+    if (body?.action === "mudurSifre") {
+      const checked = validatePassword(body.sifre);
+
+      if (!checked.ok) return json({ success: false, error: checked.error }, 400);
+
+      await setMudurPassword(pool, vdfMudurLeagueId(config), checked.value);
+
+      return json({ success: true, mudurSifreVar: true });
+    }
+
     if (body?.action === "hesapla") {
       const result = await computeVdfLeague(pool, config, "test");
 
-      return json({ success: true, result });
+      // Mağaza müdürleri yarışması da aynı Hesapla ile (TEST) hesaplanır; biri hata verse diğeri etkilenmez.
+      let mudurError: string | null = null;
+
+      try {
+        await computeVdfManagerLeague(pool, config, "test");
+      } catch (error) {
+        mudurError = error instanceof Error ? error.message : String(error);
+      }
+
+      return json({ success: true, result, mudurError });
     }
 
     return json({ success: false, error: "Bilinmeyen işlem." }, 400);

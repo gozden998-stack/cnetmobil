@@ -13,7 +13,7 @@ import crypto from "crypto";
 
 import { getPool, json } from "../../../score-rules/_shared";
 import { YARISMA_AUTO_RUN_MINUTES, ensureYarismaTables, istanbulDateAndMinutes } from "../../../yarisma/_yarisma";
-import { computeVdfLeague, getVdfConfig, vdfIsAutoRunDay } from "../_vyarisma";
+import { computeVdfLeague, computeVdfManagerLeague, getVdfConfig, vdfIsAutoRunDay } from "../_vyarisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +67,13 @@ export async function POST(request: NextRequest) {
 
     try {
       const result: any = await computeVdfLeague(pool, config, "yayin");
+
+      // Mağaza müdürleri yarışması: ayrı hesap; hata verirse kişi yarışmasının yayınını BOZMAZ (logla, geç).
+      try {
+        await computeVdfManagerLeague(pool, config, "yayin");
+      } catch (managerError) {
+        console.error("VDF_YARISMA_MUDUR_AUTO_ERROR:", managerError);
+      }
 
       await pool.query(`UPDATE public.yarisma_auto_runs SET finished_at = now() WHERE league_id = $1 AND run_date = $2::date`, [config.id, today]);
 

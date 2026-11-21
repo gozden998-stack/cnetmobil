@@ -5,6 +5,7 @@ import PersonelGidisatEkrani from './components/screens/PersonelGidisatEkrani';
 import SampiyonlarLigiSonuc from './components/screens/SampiyonlarLigiSonuc';
 import SampiyonlarLigiMudur from './components/screens/SampiyonlarLigiMudur';
 import VodafoneYarisma from './components/screens/VodafoneYarisma';
+import VodafoneMudur from './components/screens/VodafoneMudur';
 import React, { useEffect, useRef, useState } from 'react';
 
 
@@ -335,7 +336,7 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
     const [activeModal, setActiveModal] = useState<'tahmin' | 'departman' | 'personel_detay' | 'hedefler' | 'izinler' | null>(null);
     const [activeDrawer, setActiveDrawer] = useState<'personel' | 'magaza' | null>(null);
     const [anaTab, setAnaTab] = useState<'degerpuan' | 'gidisat' | 'yarisma' | 'mudur'>('degerpuan');
-    const [vdfTab, setVdfTab] = useState<'degerpuan' | 'yarisma'>('degerpuan');
+    const [vdfTab, setVdfTab] = useState<'degerpuan' | 'yarisma' | 'mudur'>('degerpuan');
     const [selectedPersonel, setSelectedPersonel] = useState<any>(null);
 
 
@@ -1639,11 +1640,12 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             {[
                                 { id: 'degerpuan', label: 'Değer Puanı' },
                                 { id: 'yarisma', label: '🏆 Şampiyonlar Ligi' },
+                                { id: 'mudur', label: '🏆 Şampiyonlar Ligi Mağaza Müdürleri' },
                             ].map((item) => (
                                 <button
                                     key={item.id}
                                     type="button"
-                                    onClick={() => setVdfTab(item.id as 'degerpuan' | 'yarisma')}
+                                    onClick={() => setVdfTab(item.id as 'degerpuan' | 'yarisma' | 'mudur')}
                                     className={`-mb-px border-b-[3px] px-4 py-3 text-[12px] font-black uppercase tracking-wide transition ${
                                         vdfTab === item.id
                                             ? 'border-blue-600 text-blue-700'
@@ -1655,7 +1657,11 @@ export default function AnaSayfa({ selectedBranch, setAppMode, config, gidisatDa
                             ))}
                         </div>
 
-                        {vdfTab === 'yarisma' ? (
+                        {vdfTab === 'mudur' ? (
+                            <div className="p-3 sm:p-4">
+                                <VodafoneMudur />
+                            </div>
+                        ) : vdfTab === 'yarisma' ? (
                             <div className="p-3 sm:p-4">
                                 <VodafoneYarisma />
                             </div>

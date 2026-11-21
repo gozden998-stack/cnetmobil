@@ -6,6 +6,7 @@
 
 import React, { useCallback, useEffect, useState } from "react";
 
+import VodafoneMudur from "./VodafoneMudur";
 import { DayPicker, dayPickLabel, dayPickToGun, formatIsoDate, istanbulToday, type DayPick } from "./degerPuanGunSecici";
 
 type Row = Record<string, any>;
@@ -198,6 +199,8 @@ function VodafoneYarismaYonetim() {
   const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [mudurSifre, setMudurSifre] = useState("");
+  const [mudurSifreVar, setMudurSifreVar] = useState(false);
 
   const loadAdmin = useCallback(async () => {
     try {
@@ -208,6 +211,7 @@ function VodafoneYarismaYonetim() {
 
       setAdmin(payload);
       setStores(payload.stores ?? []);
+      setMudurSifreVar(Boolean(payload.mudurSifreVar));
       setCarpan(Object.fromEntries(Object.entries(payload.config?.carpan ?? {}).map(([store, value]) => [store, String(value)])));
     } catch (e: any) {
       setMessage({ type: "err", text: e?.message || "Yarışma ayarı alınamadı." });
@@ -249,11 +253,22 @@ function VodafoneYarismaYonetim() {
     }
   };
 
+  const saveMudurSifre = async () => {
+    try {
+      await post({ action: "mudurSifre", sifre: mudurSifre });
+      setMudurSifre("");
+      setMudurSifreVar(true);
+      setMessage({ type: "ok", text: "Müdürler sekmesi şifresi kaydedildi (şifre bir daha gösterilmez)." });
+    } catch (e: any) {
+      setMessage({ type: "err", text: e?.message || "Şifre kaydedilemedi." });
+    }
+  };
+
   const hesapla = async () => {
     try {
       const payload = await post({ action: "hesapla" });
 
-      setMessage({ type: "ok", text: payload.result?.empty ? payload.result.message : "Test sonucu hesaplandı (mağazalara görünmez)." });
+      setMessage(payload.mudurError ? { type: "err", text: `Kişi yarışması hesaplandı; müdür yarışması hesaplanamadı: ${payload.mudurError}` } : { type: "ok", text: payload.result?.empty ? payload.result.message : "Test sonucu hesaplandı (mağazalara görünmez)." });
       await loadAdmin();
       setRefreshKey((value) => value + 1);
     } catch (e: any) {
@@ -303,6 +318,16 @@ function VodafoneYarismaYonetim() {
         )}
       </div>
 
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="text-[14px] font-black text-slate-900">Mağaza Müdürleri sekmesi şifresi</div>
+        <p className="mt-1 text-[12px] font-semibold text-slate-500">Vodafone mağaza girişlerinde sekme herkese görünür, sıralama için bu şifre gerekir (girişten 20 saniye sonra yeniden kilitlenir). Şifre CMR müdür şifresinden ayrıdır; kendisi hiçbir yerde gösterilmez.</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input type="password" autoComplete="new-password" value={mudurSifre} onChange={(event) => setMudurSifre(event.target.value)} placeholder={mudurSifreVar ? "Yeni şifre (mevcut gizli)" : "Şifre belirle (en az 4 karakter)"} className="h-10 w-64 rounded-xl border border-slate-200 px-3 text-[13px] font-semibold outline-none focus:border-blue-400" />
+          <button type="button" disabled={busy || mudurSifre.length < 4} onClick={() => void saveMudurSifre()} className="h-10 rounded-xl bg-blue-600 px-5 text-[12px] font-black uppercase text-white disabled:opacity-40">Şifreyi kaydet</button>
+          <span className={`text-[12px] font-bold ${mudurSifreVar ? "text-emerald-600" : "text-amber-600"}`}>{mudurSifreVar ? "Şifre belirlendi" : "Şifre henüz belirlenmedi"}</span>
+        </div>
+      </div>
+
       {result && missing.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12px] font-bold text-amber-800">Çarpanı girilmeyen mağaza (1 sayıldı): {missing.join(", ")}</div>
       )}
@@ -324,6 +349,11 @@ function VodafoneYarismaYonetim() {
       <div>
         <div className="mb-2 text-[13px] font-black uppercase text-slate-500">Test sonucu önizlemesi (mağazalara görünmez)</div>
         <VodafoneYarismaSonuc kaynak="test" refreshKey={refreshKey} />
+      </div>
+
+      <div>
+        <div className="mb-2 text-[13px] font-black uppercase text-slate-500">Mağaza müdürleri yarışması - test önizlemesi (mağazalara görünmez)</div>
+        <VodafoneMudur key={`m-${refreshKey}`} kaynak="test" />
       </div>
     </div>
   );

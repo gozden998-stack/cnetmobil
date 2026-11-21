@@ -12,9 +12,9 @@ import { MudurKarti } from "./SampiyonlarLigiSonuc";
 
 type Row = Record<string, any>;
 
-const STORAGE_KEY = "cnet_mudur_token";
+const DEFAULT_STORAGE_KEY = "cnet_mudur_token";
 
-function readToken(): string {
+function readToken(STORAGE_KEY: string): string {
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
@@ -29,7 +29,7 @@ function readToken(): string {
 }
 
 // Saklanan anahtarın bitiş zamanı (ms); yoksa 0
-function readExpiryMs(): number {
+function readExpiryMs(STORAGE_KEY: string): number {
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
     const parsed = raw ? JSON.parse(raw) : null;
@@ -43,7 +43,7 @@ function readExpiryMs(): number {
   }
 }
 
-function writeToken(token: string, expiresAt: number) {
+function writeToken(STORAGE_KEY: string, token: string, expiresAt: number) {
   try {
     if (token) window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify({ token, expiresAt }));
     else window.sessionStorage.removeItem(STORAGE_KEY);
@@ -55,7 +55,20 @@ function writeToken(token: string, expiresAt: number) {
 const dateTr = (iso: unknown) => (iso ? String(iso).split("-").reverse().join(".") : "-");
 
 // kaynak "yayin": mağazaların gördüğü. "test": yalnız yönetici önizlemesi (şifre gerekmez, Hesapla sonucu).
-export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "yayin" | "test" }) {
+// endpoint / loginEndpoint / storageKey / renderKart: Vodafone kanalı aynı ekranı kendi uçları ve kartıyla kullanır.
+export default function SampiyonlarLigiMudur({
+  kaynak = "yayin",
+  endpoint = "/api/wingsm/yarisma/mudur",
+  loginEndpoint = "/api/wingsm/yarisma/mudur/giris",
+  storageKey = DEFAULT_STORAGE_KEY,
+  renderKart,
+}: {
+  kaynak?: "yayin" | "test";
+  endpoint?: string;
+  loginEndpoint?: string;
+  storageKey?: string;
+  renderKart?: (mudur: Record<string, any>, myBranch?: string) => React.ReactNode;
+}) {
   const [data, setData] = useState<Row | null>(null);
   const [error, setError] = useState("");
   const [pick, setPick] = useState<DayPick>({ kind: "bugun" });
@@ -69,8 +82,8 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
     try {
       const gun = kaynak === "test" ? null : dayPickToGun(pick);
       const query = kaynak === "test" ? "?kaynak=test" : gun ? `?gun=${gun}` : "";
-      const token = readToken();
-      const response = await fetch(`/api/wingsm/yarisma/mudur${query}`, {
+      const token = readToken(storageKey);
+      const response = await fetch(`${endpoint}${query}`, {
         cache: "no-store",
         credentials: "same-origin",
         headers: token ? { "x-mudur-token": token } : undefined,
@@ -81,7 +94,7 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
 
       // Süresi dolmuş/geçersiz anahtar sunucuda "locked" döner: saklanan anahtar silinir
       if (payload.locked) {
-        writeToken("", 0);
+        writeToken(storageKey, "", 0);
         setLockLeft(null);
       }
 
@@ -92,7 +105,7 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
     } finally {
       setLoading(false);
     }
-  }, [kaynak, pick]);
+  }, [kaynak, pick, endpoint, storageKey]);
 
   // 20 SANİYE GERİ SAYIM: süre dolunca ekran kilitlenir, veri ve anahtar silinir (yönetici ve test önizlemesi hariç)
   useEffect(() => {
@@ -103,10 +116,10 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
     }
 
     const tick = () => {
-      const left = Math.ceil((readExpiryMs() - Date.now()) / 1000);
+      const left = Math.ceil((readExpiryMs(storageKey) - Date.now()) / 1000);
 
       if (left <= 0) {
-        writeToken("", 0);
+        writeToken(storageKey, "", 0);
         setLockLeft(null);
         setData((current) => (current ? { success: true, locked: true, passwordSet: true, config: current.config } : current));
 
@@ -121,7 +134,7 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
     const timer = window.setInterval(tick, 1000);
 
     return () => window.clearInterval(timer);
-  }, [data, kaynak]);
+  }, [data, kaynak, storageKey]);
 
   useEffect(() => {
     setLoading(true);
@@ -139,7 +152,7 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
     setLoginError("");
 
     try {
-      const response = await fetch("/api/wingsm/yarisma/mudur/giris", {
+      const response = await fetch(loginEndpoint, {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
@@ -149,7 +162,7 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
 
       if (!payload?.success) throw new Error(payload?.error || `HTTP ${response.status}`);
 
-      writeToken(String(payload.token), Number(payload.expiresAt));
+      writeToken(storageKey, String(payload.token), Number(payload.expiresAt));
       setPassword("");
       await load();
     } catch (e: any) {
@@ -250,7 +263,7 @@ export default function SampiyonlarLigiMudur({ kaynak = "yayin" }: { kaynak?: "y
               {formatIsoDate(data.gun)} tarihli rapor: {dateTr(data.mudur.range.from)} - {dateTr(data.mudur.range.to)} arası
             </div>
           )}
-          <MudurKarti mudur={data.mudur} myBranch={data.myBranch} />
+          {renderKart ? renderKart(data.mudur, data.myBranch) : <MudurKarti mudur={data.mudur} myBranch={data.myBranch} />}
         </>
       )}
     </div>
