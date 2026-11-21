@@ -441,7 +441,7 @@ function VodafoneYarismaYonetim() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-[12px] font-semibold text-slate-600 shadow-sm">
           <div className="mb-1 text-[13px] font-black text-slate-900">Kontrol bilgisi (yalnız yönetici)</div>
           <div>
-            5AK: Gross {diag.gross5akRows} satır · Baz {diag.baz5akRows} satır · <b className={diag.unmatched5akRows ? "text-amber-700" : ""}>tanınmayan {diag.unmatched5akRows}</b> satır (Gross/Baz'a girmedi)
+            5AK: Gross {diag.gross5akRows} satır · Baz {diag.baz5akRows} satır · <b className={diag.unmatched5akRows ? "text-amber-700" : ""}>tanınmayan {diag.unmatched5akRows}</b> satır (Gross/Baz'a girmedi) · hariç tutulan (DEVİR, MCCM'Lİ CİHAZ) {diag.excluded5akRows ?? 0} satır
           </div>
           <div>
             Temlikli liste: {diag.temlikRows} satır · 1el {diag.temlik1elRows} satır · 1el olmayan {diag.temlikOtherClassRows} satır (sayılmadı)

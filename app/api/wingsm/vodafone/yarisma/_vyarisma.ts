@@ -81,10 +81,12 @@ export function foldTr(value: unknown): string {
 
 export type Kalem = "gross" | "baz" | "tekil" | "samsung" | "premium";
 
-// 5AK satırı: MCCM -> baz; FATURALI / RED / KONTÖRLÜ -> gross; ikisi de değilse null (tanı listesine düşer).
-export function classify5ak(malAd: unknown): "gross" | "baz" | null {
+// 5AK satırı: DEVİR ve "MCCM'Lİ CİHAZ" satırları HİÇ SAYILMAZ ("haric", kullanıcı kararı); MCCM -> baz; FATURALI / RED / REDBOX / KONTÖRLÜ -> gross;
+// hiçbirine uymayan null (tanı listesine düşer).
+export function classify5ak(malAd: unknown): "gross" | "baz" | "haric" | null {
   const name = foldTr(malAd);
 
+  if (/devir/.test(name) || /mccm[^a-z0-9]*li[^a-z0-9]*cihaz/.test(name)) return "haric";
   if (/mccm/.test(name)) return "baz";
   if (/faturali|kontorlu|red ?box/.test(name) || /(^|[^a-z0-9])red([^a-z0-9]|$)/.test(name)) return "gross";
 
@@ -125,6 +127,7 @@ export type VdfDiagnostics = {
   gross5akRows: number;
   baz5akRows: number;
   unmatched5akRows: number;
+  excluded5akRows: number; // DEVİR / MCCM'Lİ CİHAZ: bilerek sayılmayan
   unmatched5akExamples: string[];
   temlikRows: number;
   temlik1elRows: number;
@@ -148,6 +151,7 @@ export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoint
     gross5akRows: 0,
     baz5akRows: 0,
     unmatched5akRows: 0,
+    excluded5akRows: 0,
     unmatched5akExamples: [],
     temlikRows: 0,
     temlik1elRows: 0,
@@ -173,6 +177,11 @@ export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoint
 
       const kalem = classify5ak(row.MalAd);
       const sign = qtyOf(row) < 0 ? -1 : 1; // 5AK satırı: satır başına 1 (iade -1)
+
+      if (kalem === "haric") {
+        diagnostics.excluded5akRows += 1;
+        continue;
+      }
 
       if (!kalem) {
         diagnostics.unmatched5akRows += 1;
@@ -667,7 +676,7 @@ export function listPersonLines(sales: VdfSaleList[], nameQuery: string, points:
       const adet = qtyOf(row) < 0 ? -1 : 1;
       const raw = kalem === "gross" ? points.gross : kalem === "baz" ? points.baz : 0;
 
-      lines.push({ magaza: depot.branchLabel, tarih: String(row.Tarih ?? ""), urun: String(row.MalAd ?? ""), sinif: "5AK", adet, kalem: kalem ?? "SAYILMADI (tanınmayan 5AK)", puan: round2(raw * adet * mult(depot.branchLabel)) });
+      lines.push({ magaza: depot.branchLabel, tarih: String(row.Tarih ?? ""), urun: String(row.MalAd ?? ""), sinif: "5AK", adet, kalem: kalem === "haric" ? "SAYILMADI (hariç: DEVİR / MCCM'Lİ CİHAZ)" : kalem ?? "SAYILMADI (tanınmayan 5AK)", puan: round2(raw * adet * mult(depot.branchLabel)) });
     }
 
     for (const row of depot.temlik) {
