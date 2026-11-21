@@ -935,25 +935,34 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
   }
 
   const hasBaseline = baselineTo >= monthStart;
-  const [baseReports, curReport]: any[] = await Promise.all([
-    hasBaseline
-      ? (async () => {
-          const parts = splitRange(monthStart, baselineTo);
-          const reports: any[] = [];
+  // Önkoşul (şirket toplamı) ayın 1'inden başlangıç öncesine kadar olan KISA dönemle (1-16 Kasım) kıyaslanır; müdür sıralaması 93 günlük tabanla.
+  const preFrom = `${config.startDate.slice(0, 7)}-01`;
+  const hasPre = baselineTo >= preFrom;
+  const fetchParts = async (from: string, toDay: string) => {
+    const parts = splitRange(from, toDay);
+    const reports: any[] = [];
 
-          for (let i = 0; i < parts.length; i += 2) {
-            const batch = await Promise.all(parts.slice(i, i + 2).map((part) => computeAndSaveDegerPuanReport({ bastar: part.from, bittar: part.to, skipSave: true, collectImeis: true })));
+    for (let i = 0; i < parts.length; i += 2) {
+      const batch = await Promise.all(parts.slice(i, i + 2).map((part) => computeAndSaveDegerPuanReport({ bastar: part.from, bittar: part.to, skipSave: true, collectImeis: true })));
 
-            reports.push(...batch);
-          }
+      reports.push(...batch);
+    }
 
-          return reports;
-        })()
-      : Promise.resolve([]),
+    return reports.flatMap((report) => (Array.isArray(report?.imeiRows) ? report.imeiRows : [])) as ImeiSaleRow[];
+  };
+  // WingSM'e aynı anda çok istek gitmesin: eski dönem ve 1-16 Kasım ARKA ARKAYA, cari dönemle paralel.
+  const [olderAndPre, curReport]: any[] = await Promise.all([
+    (async () => {
+      const older = hasBaseline && monthStart < preFrom ? await fetchParts(monthStart, addDays(preFrom, -1)) : ([] as ImeiSaleRow[]);
+      const pre = hasPre ? await fetchParts(preFrom > monthStart ? preFrom : monthStart, baselineTo) : ([] as ImeiSaleRow[]);
+
+      return { older, pre };
+    })(),
     computeAndSaveDegerPuanReport({ bastar: config.startDate, bittar: to, skipSave: true, collectImeis: true }),
   ]);
 
-  const baseRows: ImeiSaleRow[] = (baseReports as any[]).flatMap((report) => (Array.isArray(report?.imeiRows) ? report.imeiRows : []));
+  const preRows: ImeiSaleRow[] = olderAndPre.pre;
+  const baseRows: ImeiSaleRow[] = [...olderAndPre.older, ...preRows];
   const curRows: ImeiSaleRow[] = Array.isArray(curReport?.imeiRows) ? curReport.imeiRows : [];
   const allImeis = Array.from(new Set([...baseRows, ...curRows].flatMap((row) => row.imeis)));
   const stockList = await getStockImeis(pool, config.id);
@@ -1000,14 +1009,16 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
   });
   const prizes = assignManagerPrizes(standing);
 
-  // Önkoşul: şirket toplamı, aynı 1-16 / 17-30 oranıyla
-  const totalBase = standing.reduce((sum, row) => sum + row.baseline, 0);
+  // Önkoşul: şirket toplamı, 1-16 Kasım ham toplamına göre (müdür sıralamasındaki 93 günlük taban DEĞİL)
+  const preCounts = countDeviceSalesByBranch(preRows, stockImeis);
+  const totalBase = CMR_STORE_LABELS.reduce((sum, label) => sum + Math.max(0, preCounts.get(label) ?? 0), 0);
   const totalCur = standing.reduce((sum, row) => sum + row.current, 0);
   const ratio = totalBase > 0 ? (totalCur / totalBase) * 100 : null;
   const precondition = {
     required: config.preconditionPct,
     available: ratio !== null,
     baseline: totalBase,
+    baselineRange: hasPre ? { from: preFrom, to: baselineTo } : null,
     current: totalCur,
     ratioPct: ratio,
     growthPct: ratio === null ? null : ratio - 100,

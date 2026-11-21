@@ -215,7 +215,7 @@ export function MudurKarti({ mudur, myBranch }: { mudur: Row; myBranch?: string 
 
       {pre?.available && (
         <div className="text-[12px] font-bold text-slate-600">
-          Önkoşul (şirket cihaz satışı +%{pre.required}): önceki dönem (aynı güne çevrilmiş) <b>{fmt(pre.baseline, 1)}</b>, şimdiye kadar <b>{pre.current}</b> → oran <b>%{fmt(pre.ratioPct, 1)}</b>{" "}
+          Önkoşul (şirket cihaz satışı +%{pre.required}): {pre.baselineRange ? `${dateTr(pre.baselineRange.from)} - ${dateTr(pre.baselineRange.to)}` : "önceki dönem"} toplam <b>{pre.baseline}</b>, {range ? `${dateTr(range.from)} - ${dateTr(range.to)}` : "şimdiye kadar"} toplam <b>{pre.current}</b> → oran <b>%{fmt(pre.ratioPct, 1)}</b>{" "}
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${pre.met ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{pre.met ? "Sağlanıyor" : "Henüz sağlanmıyor"}</span>
         </div>
       )}
