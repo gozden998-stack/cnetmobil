@@ -5,16 +5,14 @@
 // GET  -> yarışma ayarı (puanlar, mağaza çarpanları) + yöneticinin son "Hesapla" (TEST) sonucu + yayın özeti (hesap yapmaz)
 // POST { action: "hesapla" }                      -> TEST sonucunu hesapla ve kaydet (mağazalara görünmez)
 // POST { action: "carpanKaydet", carpan: {...} }  -> mağaza çarpanlarını kaydet (elle girilir)
-// POST { action: "hedefKaydet", rows: [...] }     -> yarışmaya özel KİŞİ HEDEFLERİNİ tamamen değiştirir (elle girilir)
-// POST { action: "ayar", siralama: "hedef"|"puan" } -> sıralama ölçütü
 // Resmi Vodafone Değer Puan raporu/arşivi bu hesapla DEĞİŞMEZ. WingSM'e yazılmaz.
 
 import { NextRequest } from "next/server";
 
 import { getPool, json, requireAdminSession } from "../../score-rules/_shared";
-import { getLatestResult, getYarismaTargets, saveYarismaTargets } from "../../yarisma/_yarisma";
-import { VODAFONE_DEPOTS, loadTargets } from "../_vodafone";
-import { computeVdfLeague, getVdfConfig, sanitizeCarpan, saveVdfConfig, validateVdfTargets } from "./_vyarisma";
+import { getLatestResult } from "../../yarisma/_yarisma";
+import { VODAFONE_DEPOTS } from "../_vodafone";
+import { computeVdfLeague, getVdfConfig, sanitizeCarpan, saveVdfConfig } from "./_vyarisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,9 +32,6 @@ export async function GET(request: NextRequest) {
       success: true,
       config,
       stores: VODAFONE_DEPOTS.map((depot) => depot.branchLabel),
-      targets: await getYarismaTargets(pool, config.id),
-      // Vodafone Değer Puan hedefleri (başlangıç listesi olarak önerilir)
-      degerPuanTargets: (await loadTargets(pool, config.countFrom.slice(0, 7))).personnel.map((item) => ({ saticiAdi: item.saticiAdi, branchLabel: item.branchLabel, hedef: item.hedef })),
       result: await getLatestResult(pool, config.id, "test"),
       published: published ? { computedAt: published.computedAt, range: published.range ?? null } : null,
     });
@@ -70,24 +65,6 @@ export async function POST(request: NextRequest) {
       await saveVdfConfig(pool, { ...config, carpan: parsed.value });
 
       return json({ success: true, config: { ...config, carpan: parsed.value } });
-    }
-
-    if (body?.action === "hedefKaydet") {
-      const parsed = validateVdfTargets(body?.rows);
-
-      if (!parsed.ok) return json({ success: false, error: parsed.error }, 400);
-
-      await saveYarismaTargets(pool, config.id, parsed.rows);
-
-      return json({ success: true, targets: await getYarismaTargets(pool, config.id) });
-    }
-
-    if (body?.action === "ayar") {
-      if (body?.siralama !== "hedef" && body?.siralama !== "puan") return json({ success: false, error: "Sıralama ölçütü geçersiz." }, 400);
-
-      await saveVdfConfig(pool, { ...config, siralama: body.siralama });
-
-      return json({ success: true, config: { ...config, siralama: body.siralama } });
     }
 
     if (body?.action === "hesapla") {
