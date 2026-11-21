@@ -191,6 +191,82 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
   );
 }
 
+// Kişi dökümü tablosu: kalem özeti + satır satır liste
+function VodafoneDokumTablosu({ dokum }: { dokum: Row }) {
+  const lines: Row[] = Array.isArray(dokum.lines) ? dokum.lines : [];
+  const sum = (kalem: string, store?: string) => lines.filter((line) => line.kalem === kalem && (!store || line.magaza === store)).reduce((total, line) => total + Number(line.adet || 0), 0);
+  const kalemler = ["gross", "baz", "tekil", "tekil + samsung", "tekil + samsung + premium"];
+  const stores = Array.from(new Set(lines.map((line) => String(line.magaza))));
+  const sayilmayan = lines.filter((line) => String(line.kalem).startsWith("SAYILMADI"));
+
+  return (
+    <div className="mt-4 space-y-3">
+      <div className="text-[12px] font-bold text-slate-600">
+        Aralık: {String(dokum.range?.from ?? "").split("-").reverse().join(".")} - {String(dokum.range?.to ?? "").split("-").reverse().join(".")} · Eşleşen satıcı adı: {Array.isArray(dokum.saticilar) && dokum.saticilar.length ? dokum.saticilar.join(", ") : "yok"} · {lines.length} satır
+      </div>
+      {lines.length > 0 && (
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
+          <table className="w-full min-w-[520px] text-left text-[12px]">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 font-black uppercase text-slate-500">
+                <th className="px-3 py-2">Mağaza</th>
+                {kalemler.map((kalem) => (
+                  <th key={kalem} className="px-3 py-2 text-right">{kalem}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {stores.map((store) => (
+                <tr key={store}>
+                  <td className="px-3 py-1.5 font-bold">{store}</td>
+                  {kalemler.map((kalem) => (
+                    <td key={kalem} className="px-3 py-1.5 text-right font-semibold">{sum(kalem, store)}</td>
+                  ))}
+                </tr>
+              ))}
+              <tr className="bg-slate-50 font-black">
+                <td className="px-3 py-1.5">Toplam</td>
+                {kalemler.map((kalem) => (
+                  <td key={kalem} className="px-3 py-1.5 text-right">{sum(kalem)}</td>
+                ))}
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+      {sayilmayan.length > 0 && <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-800">Sayılmayan {sayilmayan.length} satır var (aşağıda "SAYILMADI" yazanlar).</div>}
+      <div className="max-h-[420px] overflow-auto rounded-xl border border-slate-200">
+        <table className="w-full min-w-[720px] text-left text-[12px]">
+          <thead className="sticky top-0 bg-slate-50">
+            <tr className="border-b border-slate-200 font-black uppercase text-slate-500">
+              <th className="px-3 py-2">Tarih</th>
+              <th className="px-3 py-2">Mağaza</th>
+              <th className="px-3 py-2">Ürün</th>
+              <th className="px-3 py-2">Sınıf</th>
+              <th className="px-3 py-2 text-right">Adet</th>
+              <th className="px-3 py-2">Sayıldığı kalem</th>
+              <th className="px-3 py-2 text-right">Puan</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {lines.map((line, index) => (
+              <tr key={index} className={String(line.kalem).startsWith("SAYILMADI") ? "bg-amber-50/60" : ""}>
+                <td className="whitespace-nowrap px-3 py-1.5 font-semibold">{line.tarih}</td>
+                <td className="px-3 py-1.5 font-semibold">{line.magaza}</td>
+                <td className="px-3 py-1.5">{line.urun}</td>
+                <td className="px-3 py-1.5">{line.sinif}</td>
+                <td className="px-3 py-1.5 text-right font-semibold">{line.adet}</td>
+                <td className="px-3 py-1.5 font-bold">{line.kalem}</td>
+                <td className="px-3 py-1.5 text-right font-black">{line.puan}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 // Yönetici bölümü: mağaza çarpanları (elle), Hesapla (test), test sonucu önizlemesi + tanı bilgisi
 function VodafoneYarismaYonetim() {
   const [stores, setStores] = useState<string[]>([]);
@@ -200,6 +276,9 @@ function VodafoneYarismaYonetim() {
   const [busy, setBusy] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [mudurSifre, setMudurSifre] = useState("");
+  const [dokumAd, setDokumAd] = useState("");
+  const [dokum, setDokum] = useState<Row | null>(null);
+  const [dokumBusy, setDokumBusy] = useState(false);
   const [mudurSifreVar, setMudurSifreVar] = useState(false);
 
   const loadAdmin = useCallback(async () => {
@@ -261,6 +340,22 @@ function VodafoneYarismaYonetim() {
       setMessage({ type: "ok", text: "Müdürler sekmesi şifresi kaydedildi (şifre bir daha gösterilmez)." });
     } catch (e: any) {
       setMessage({ type: "err", text: e?.message || "Şifre kaydedilemedi." });
+    }
+  };
+
+  const getDokum = async () => {
+    setDokumBusy(true);
+    setDokum(null);
+    setMessage(null);
+
+    try {
+      const payload = await post({ action: "dokum", kisi: dokumAd });
+
+      setDokum(payload.dokum);
+    } catch (e: any) {
+      setMessage({ type: "err", text: e?.message || "Döküm alınamadı." });
+    } finally {
+      setDokumBusy(false);
     }
   };
 
@@ -331,6 +426,16 @@ function VodafoneYarismaYonetim() {
       {result && missing.length > 0 && (
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2.5 text-[12px] font-bold text-amber-800">Çarpanı girilmeyen mağaza (1 sayıldı): {missing.join(", ")}</div>
       )}
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="text-[14px] font-black text-slate-900">Kişi dökümü (WingSM ile karşılaştırma)</div>
+        <p className="mt-1 text-[12px] font-semibold text-slate-500">Kişi adının bir kısmını yaz (en az 3 harf). Yarışma aralığındaki, o kişiye ait 5AK ve temlikli satırların hepsi, hangi kalemde sayıldığıyla listelenir. Hiçbir şey kaydedilmez; her seferinde WingSM'den okunur (birkaç saniye sürebilir).</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <input value={dokumAd} onChange={(event) => setDokumAd(event.target.value)} placeholder="Örn. HÜSEYİN YALÇIN" className="h-10 w-72 rounded-xl border border-slate-200 px-3 text-[13px] font-semibold outline-none focus:border-blue-400" />
+          <button type="button" disabled={dokumBusy || busy || dokumAd.trim().length < 3} onClick={() => void getDokum()} className="h-10 rounded-xl bg-slate-900 px-5 text-[12px] font-black uppercase text-white disabled:opacity-40">{dokumBusy ? "Okunuyor..." : "Dök"}</button>
+        </div>
+        {dokum && <VodafoneDokumTablosu dokum={dokum} />}
+      </div>
 
       {diag && (
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-[12px] font-semibold text-slate-600 shadow-sm">

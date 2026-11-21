@@ -13,7 +13,7 @@ import { getPool, json, requireAdminSession } from "../../score-rules/_shared";
 import { getLatestResult } from "../../yarisma/_yarisma";
 import { hasMudurPassword, setMudurPassword, validatePassword } from "../../yarisma/_mudur-erisim";
 import { VODAFONE_DEPOTS } from "../_vodafone";
-import { computeVdfLeague, computeVdfManagerLeague, getVdfConfig, sanitizeCarpan, saveVdfConfig, vdfMudurLeagueId } from "./_vyarisma";
+import { computeVdfLeague, computeVdfManagerLeague, dokumVdfPerson, getVdfConfig, sanitizeCarpan, saveVdfConfig, vdfMudurLeagueId } from "./_vyarisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -68,6 +68,14 @@ export async function POST(request: NextRequest) {
       await saveVdfConfig(pool, { ...config, carpan: parsed.value });
 
       return json({ success: true, config: { ...config, carpan: parsed.value } });
+    }
+
+    if (body?.action === "dokum") {
+      const kisi = String(body?.kisi ?? "").trim();
+
+      if (kisi.length < 3 || kisi.length > 100) return json({ success: false, error: "Kişi adından en az 3 harf yazın." }, 400);
+
+      return json({ success: true, dokum: await dokumVdfPerson(config, kisi) });
     }
 
     if (body?.action === "mudurSifre") {

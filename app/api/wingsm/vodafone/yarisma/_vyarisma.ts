@@ -637,3 +637,77 @@ export async function computeVdfManagerLeague(pool: Pool, config: VdfLeagueConfi
 
   return { ...payload, computedAt: new Date().toISOString() };
 }
+
+
+// ------------------------------------------------------------------
+// KİŞİ DÖKÜMÜ (yalnız yönetici; sayımı WingSM ile karşılaştırmak için)
+// ------------------------------------------------------------------
+// Bir kişinin (ad içerir eşleşmesi) yarışma aralığındaki TÜM satırlarını, hangi kalemde sayıldığıyla listeler.
+// Hiçbir şey kaydedilmez; her çağrıda WingSM'den okunur.
+
+export type VdfDokumLine = { magaza: string; tarih: string; urun: string; sinif: string; adet: number; kalem: string; puan: number };
+
+export function listPersonLines(sales: VdfSaleList[], nameQuery: string, points: VdfPoints, carpan: Record<string, number>): { lines: VdfDokumLine[]; saticilar: string[] } {
+  const query = normalizeName(nameQuery);
+  const lines: VdfDokumLine[] = [];
+  const names = new Set<string>();
+
+  if (!query) return { lines, saticilar: [] };
+
+  const matches = (row: Record<string, unknown>) => normalizeName(String(row.SaticiAdI ?? "")).includes(query);
+  const mult = (branchLabel: string) => (Number(carpan[branchLabel]) > 0 ? Number(carpan[branchLabel]) : 1);
+
+  for (const depot of sales) {
+    for (const row of depot.liste) {
+      if (normalizeClass(row.MalSinif) !== "5AK" || !matches(row)) continue;
+
+      names.add(String(row.SaticiAdI ?? "").trim());
+
+      const kalem = classify5ak(row.MalAd);
+      const adet = qtyOf(row) < 0 ? -1 : 1;
+      const raw = kalem === "gross" ? points.gross : kalem === "baz" ? points.baz : 0;
+
+      lines.push({ magaza: depot.branchLabel, tarih: String(row.Tarih ?? ""), urun: String(row.MalAd ?? ""), sinif: "5AK", adet, kalem: kalem ?? "SAYILMADI (tanınmayan 5AK)", puan: round2(raw * adet * mult(depot.branchLabel)) });
+    }
+
+    for (const row of depot.temlik) {
+      if (!matches(row)) continue;
+
+      names.add(String(row.SaticiAdI ?? "").trim());
+
+      const sinif = String(row.MalSinif ?? "");
+      const adet = qtyOf(row);
+
+      if (foldTr(normalizeClass(sinif)) !== "1el") {
+        lines.push({ magaza: depot.branchLabel, tarih: String(row.Tarih ?? ""), urun: String(row.MalAd ?? ""), sinif, adet, kalem: "SAYILMADI (temlik, 1el değil)", puan: 0 });
+        continue;
+      }
+
+      const kind = classifyTekil(row.MalAd);
+      const raw = points.tekil + (kind !== "tekil" ? points.samsung : 0) + (kind === "premium" ? points.premium : 0);
+
+      lines.push({ magaza: depot.branchLabel, tarih: String(row.Tarih ?? ""), urun: String(row.MalAd ?? ""), sinif, adet, kalem: kind === "premium" ? "tekil + samsung + premium" : kind === "samsung" ? "tekil + samsung" : "tekil", puan: round2(raw * adet * mult(depot.branchLabel)) });
+    }
+  }
+
+  lines.sort((a, b) => a.tarih.localeCompare(b.tarih) || a.magaza.localeCompare(b.magaza, "tr-TR"));
+
+  return { lines, saticilar: Array.from(names) };
+}
+
+export async function dokumVdfPerson(config: VdfLeagueConfig, nameQuery: string, fetcher: typeof fetchDepotLists = fetchDepotLists) {
+  const yesterday = addDays(todayInTurkey(), -1);
+  const to = yesterday < config.endDate ? yesterday : config.endDate;
+
+  if (to < config.countFrom) return { range: { from: config.countFrom, to }, lines: [], saticilar: [] as string[] };
+
+  const sales: VdfSaleList[] = await Promise.all(
+    VODAFONE_DEPOTS.map(async ({ depotCode, branchLabel }) => {
+      const lists = await fetcher(depotCode, toWingsmDate(config.countFrom), toWingsmDate(to), ["liste", "temlik"]);
+
+      return { depotCode, branchLabel, liste: lists.liste, temlik: lists.temlik };
+    })
+  );
+
+  return { range: { from: config.countFrom, to }, ...listPersonLines(sales, nameQuery, config.points, config.carpan) };
+}
