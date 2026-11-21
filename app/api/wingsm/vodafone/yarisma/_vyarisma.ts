@@ -4,7 +4,7 @@
 //
 // Kurallar (kullanıcının duyurusu + açıklamaları):
 //  - Puan kalemleri (kişi bazlı):
-//      GROSS  = Vodafone mağazalarında, sınıfı 5AK olan satırlardan ürün adında FATURALI / RED / KONTÖRLÜ geçenler   -> 1 puan
+//      GROSS  = Vodafone mağazalarında, sınıfı 5AK olan satırlardan ürün adında FATURALI / RED / KONTÖRLÜ / REDBOX geçenler   -> 1 puan
 //      BAZ    = sınıfı 5AK olan satırlardan ürün adında MCCM geçenler                                                -> 0,5 puan
 //      TEKİL  = WingSM TEMLİKLİ satış listesindeki TÜM 1el (sıfır cihaz) satırları                                  -> 2,5 puan
 //      SAMSUNG TEKİL          = o satırlardan ürünü Samsung olanlar, tekil puanına EK                               -> +1,5 puan
@@ -86,7 +86,7 @@ export function classify5ak(malAd: unknown): "gross" | "baz" | null {
   const name = foldTr(malAd);
 
   if (/mccm/.test(name)) return "baz";
-  if (/faturali|kontorlu/.test(name) || /(^|[^a-z0-9])red([^a-z0-9]|$)/.test(name)) return "gross";
+  if (/faturali|kontorlu|red ?box/.test(name) || /(^|[^a-z0-9])red([^a-z0-9]|$)/.test(name)) return "gross";
 
   return null;
 }
