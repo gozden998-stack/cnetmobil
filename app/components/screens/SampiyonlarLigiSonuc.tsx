@@ -197,7 +197,7 @@ export function MudurKarti({ mudur, myBranch }: { mudur: Row; myBranch?: string 
       <div>
         <div className="text-[16px] font-black text-slate-900">🏆 {mudur?.title || "Mağaza Müdürleri Yarışması"}</div>
         <div className="text-[12px] font-semibold text-slate-500">
-          Oran = {dateTr(range?.from)} - {dateTr(range?.to)} cihaz satışı (1.el + 2.el + 1.el tablet + stok cihaz, adet) ÷ {base ? `${dateTr(base.from)} - ${dateTr(base.to)}` : "önceki dönem"} cihaz satışı.
+          Oran = {dateTr(range?.from)} - {dateTr(range?.to)} cihaz satışı (1.el + 2.el + 1.el tablet + stok cihaz, adet) ÷ {base ? `${dateTr(base.from)} - ${dateTr(base.to)}` : "önceki dönem"} cihaz satışı{mudur?.baselineDays && mudur?.currentDays ? ` (günlük ortalamaya göre, aynı gün sayısına çevrilmiş: ${mudur.currentDays} gün)` : ""}.
           {mudur?.carpanMode === "yok" || !mudur?.carpanMode ? " Oranı en yüksek mağazanın müdürü kazanır." : " Mağaza büyüklüğü farkı için artışa adalet çarpanı uygulanır; sıralama \"Puan\" sütununa göre. En yüksek puanlı mağazanın müdürü kazanır."}
           {mudur?.computedAt ? ` · Son güncelleme: ${new Date(mudur.computedAt).toLocaleString("tr-TR")}` : ""}
         </div>
@@ -215,7 +215,7 @@ export function MudurKarti({ mudur, myBranch }: { mudur: Row; myBranch?: string 
 
       {pre?.available && (
         <div className="text-[12px] font-bold text-slate-600">
-          Önkoşul (şirket cihaz satışı +%{pre.required}): 1-16 toplam <b>{pre.baseline}</b>, 17-30 şimdiye kadar <b>{pre.current}</b> → oran <b>%{fmt(pre.ratioPct, 1)}</b>{" "}
+          Önkoşul (şirket cihaz satışı +%{pre.required}): önceki dönem (aynı güne çevrilmiş) <b>{fmt(pre.baseline, 1)}</b>, şimdiye kadar <b>{pre.current}</b> → oran <b>%{fmt(pre.ratioPct, 1)}</b>{" "}
           <span className={`rounded-full px-2 py-0.5 text-[11px] font-black ${pre.met ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600"}`}>{pre.met ? "Sağlanıyor" : "Henüz sağlanmıyor"}</span>
         </div>
       )}
@@ -240,7 +240,7 @@ export function MudurKarti({ mudur, myBranch }: { mudur: Row; myBranch?: string 
                 <td className="px-3 py-2 font-black">{row.siralama ?? "-"}</td>
                 <td className="px-3 py-2 font-bold">{row.branchLabel}</td>
                 <td className="px-3 py-2 font-semibold">{Array.isArray(row.managers) && row.managers.length ? row.managers.join(", ") : "-"}</td>
-                <td className="px-3 py-2 text-right font-semibold">{row.baseline}</td>
+                <td className="px-3 py-2 text-right font-semibold">{fmt(row.baseline, 1)}</td>
                 <td className="px-3 py-2 text-right font-semibold">{row.current}</td>
                 <td className="px-3 py-2 text-right font-black">{row.ratioPct === null ? "-" : `%${fmt(row.ratioPct, 1)}`}</td>
                 {mudur?.carpanMode !== "yok" && <td className="px-3 py-2 text-right font-semibold">{row.carpan === null || row.carpan === undefined ? "-" : fmt(row.carpan, 2)}</td>}

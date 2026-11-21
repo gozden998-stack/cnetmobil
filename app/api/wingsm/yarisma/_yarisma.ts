@@ -902,11 +902,30 @@ function daysInclusive(from: string, to: string): number {
 
 export const mudurLeagueId = (config: Pick<LeagueConfig, "id">) => `${config.id}-mudur`;
 
+// Mağaza Müdürleri kıyas (taban) dönemi: 16 Ağustos - yarışma başlangıcından önceki gün (16 Kasım). Başlangıç tarihi bu tarihten
+// sonra değilse eski davranış (ayın 1'i) kullanılır.
+const MUDUR_BASELINE_FROM = "2026-08-16";
+
+// Uzun aralık tek WingSM isteğinde zaman aşımına düşmesin: aralığı aylık parçalara bölüp paralel çeker.
+function splitRange(from: string, to: string): Array<{ from: string; to: string }> {
+  const parts: Array<{ from: string; to: string }> = [];
+  let cursor = from;
+
+  while (cursor <= to) {
+    const end = addDays(cursor, 30) < to ? addDays(cursor, 30) : to;
+
+    parts.push({ from: cursor, to: end });
+    cursor = addDays(end, 1);
+  }
+
+  return parts;
+}
+
 // 1-16 Kasım (başlangıç öncesi) ile 17-30 Kasım karşılaştırması. Sonucu `${id}-mudur` altında kaydeder (kind: test | yayin).
 export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kind: ResultKind = "test") {
   await ensureYarismaTables(pool);
 
-  const monthStart = `${config.startDate.slice(0, 7)}-01`;
+  const monthStart = MUDUR_BASELINE_FROM < config.startDate ? MUDUR_BASELINE_FROM : `${config.startDate.slice(0, 7)}-01`;
   const baselineTo = addDays(config.startDate, -1);
   const yesterday = addDays(todayInTurkey(), -1);
   const to = yesterday < config.endDate ? yesterday : config.endDate;
@@ -916,12 +935,14 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
   }
 
   const hasBaseline = baselineTo >= monthStart;
-  const [baseReport, curReport]: any[] = await Promise.all([
-    hasBaseline ? computeAndSaveDegerPuanReport({ bastar: monthStart, bittar: baselineTo, skipSave: true, collectImeis: true }) : Promise.resolve({ imeiRows: [] }),
+  const [baseReports, curReport]: any[] = await Promise.all([
+    hasBaseline
+      ? Promise.all(splitRange(monthStart, baselineTo).map((part) => computeAndSaveDegerPuanReport({ bastar: part.from, bittar: part.to, skipSave: true, collectImeis: true })))
+      : Promise.resolve([]),
     computeAndSaveDegerPuanReport({ bastar: config.startDate, bittar: to, skipSave: true, collectImeis: true }),
   ]);
 
-  const baseRows: ImeiSaleRow[] = Array.isArray(baseReport?.imeiRows) ? baseReport.imeiRows : [];
+  const baseRows: ImeiSaleRow[] = (baseReports as any[]).flatMap((report) => (Array.isArray(report?.imeiRows) ? report.imeiRows : []));
   const curRows: ImeiSaleRow[] = Array.isArray(curReport?.imeiRows) ? curReport.imeiRows : [];
   const allImeis = Array.from(new Set([...baseRows, ...curRows].flatMap((row) => row.imeis)));
   const stockList = await getStockImeis(pool, config.id);
@@ -944,16 +965,24 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
     // Hedef tablosu yoksa müdür adı boş kalır
   }
 
-  const baselineCounts = countDeviceSalesByBranch(baseRows, stockImeis);
+  const baselineDays = hasBaseline ? daysInclusive(monthStart, baselineTo) : 0;
+  const currentDays = daysInclusive(config.startDate, to);
+  const baselineRaw = countDeviceSalesByBranch(baseRows, stockImeis);
   const currentCounts = countDeviceSalesByBranch(curRows, stockImeis);
+  // Taban 93 günlük, cari dönem kısa: oran anlamlı olsun diye taban, cari dönemle AYNI gün sayısına indirilir (günlük ortalama x cari gün).
+  const baselineCounts = new Map<string, number>();
+
+  for (const [branch, value] of baselineRaw) {
+    baselineCounts.set(branch, baselineDays > 0 ? Math.round(((value * currentDays) / baselineDays) * 10) / 10 : value);
+  }
 
   const standing = buildManagerStanding({
     branches: CMR_STORE_LABELS,
     baseline: baselineCounts,
     current: currentCounts,
     managersByBranch,
-    baselineDays: hasBaseline ? daysInclusive(monthStart, baselineTo) : 0,
-    currentDays: daysInclusive(config.startDate, to),
+    baselineDays,
+    currentDays,
     // Çarpan KULLANILMAZ (kullanıcı kararı): oran < %100 iken büyük çarpan, en yüksek oranlı mağazayı sona atıyordu.
     // Sıralama doğrudan oranın yüksekliğine göre. (Config alanı geriye dönük uyum için duruyor, yok sayılır.)
     carpanMode: "yok",
@@ -979,6 +1008,8 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
     title: "Şampiyonlar Ligi Mağaza Müdürleri Yarışması",
     carpanMode: "yok" as const,
     baselineRange: hasBaseline ? { from: monthStart, to: baselineTo } : null,
+    baselineDays,
+    currentDays,
     range: { from: config.startDate, to },
     rows: standing,
     prizes,
