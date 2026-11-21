@@ -87,6 +87,7 @@ export default function SampiyonlarLigi() {
 
     if (payload) {
       if (payload.empty) setMessage(payload.message);
+      else if (payload.mudurError) setMessage(`Kişi yarışması hesaplandı; müdür yarışması hesaplanamadı: ${payload.mudurError}`);
 
       await load();
     }

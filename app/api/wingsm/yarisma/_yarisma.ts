@@ -906,13 +906,13 @@ export const mudurLeagueId = (config: Pick<LeagueConfig, "id">) => `${config.id}
 // sonra değilse eski davranış (ayın 1'i) kullanılır.
 const MUDUR_BASELINE_FROM = "2026-08-16";
 
-// Uzun aralık tek WingSM isteğinde zaman aşımına düşmesin: aralığı aylık parçalara bölüp paralel çeker.
+// Uzun aralık WingSM'de zaman aşımına düşmesin: aralığı 16 günlük parçalara bölüp 2'şer 2'şer (hepsi birden değil) çeker.
 function splitRange(from: string, to: string): Array<{ from: string; to: string }> {
   const parts: Array<{ from: string; to: string }> = [];
   let cursor = from;
 
   while (cursor <= to) {
-    const end = addDays(cursor, 30) < to ? addDays(cursor, 30) : to;
+    const end = addDays(cursor, 15) < to ? addDays(cursor, 15) : to;
 
     parts.push({ from: cursor, to: end });
     cursor = addDays(end, 1);
@@ -937,7 +937,18 @@ export async function computeManagerLeague(pool: Pool, config: LeagueConfig, kin
   const hasBaseline = baselineTo >= monthStart;
   const [baseReports, curReport]: any[] = await Promise.all([
     hasBaseline
-      ? Promise.all(splitRange(monthStart, baselineTo).map((part) => computeAndSaveDegerPuanReport({ bastar: part.from, bittar: part.to, skipSave: true, collectImeis: true })))
+      ? (async () => {
+          const parts = splitRange(monthStart, baselineTo);
+          const reports: any[] = [];
+
+          for (let i = 0; i < parts.length; i += 2) {
+            const batch = await Promise.all(parts.slice(i, i + 2).map((part) => computeAndSaveDegerPuanReport({ bastar: part.from, bittar: part.to, skipSave: true, collectImeis: true })));
+
+            reports.push(...batch);
+          }
+
+          return reports;
+        })()
       : Promise.resolve([]),
     computeAndSaveDegerPuanReport({ bastar: config.startDate, bittar: to, skipSave: true, collectImeis: true }),
   ]);
