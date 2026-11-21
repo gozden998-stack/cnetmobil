@@ -3136,6 +3136,22 @@ export default function CnetmobilCmrFinalUltimate() {
                 </button>
               )}
 
+              {!isZumay && !isAuctionOnlyUser && step < 99 && selectedBranch === 'VODAFONE KANALI' && (
+                <a
+                  href="https://portal.cennetelektronik.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Cennet Bayi Paneli"
+                  title="Cennet Bayi Paneli"
+                  style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.14) 0 3px, transparent 3px 8px), linear-gradient(90deg, #e60000, #a80000)' }}
+                  className="mobile-touch-target flex h-10 w-10 items-center justify-center rounded-xl text-white shadow-lg shadow-red-950/20 transition active:scale-95 md:hidden"
+                >
+                  <svg className="h-4.5 w-4.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" />
+                  </svg>
+                </a>
+              )}
+
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
@@ -3181,6 +3197,21 @@ export default function CnetmobilCmrFinalUltimate() {
                   </svg>
                   Mağaza Tedarik
                 </button>
+              )}
+
+              {!isZumay && !isAuctionOnlyUser && step < 99 && selectedBranch === 'VODAFONE KANALI' && (
+                <a
+                  href="https://portal.cennetelektronik.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.14) 0 3px, transparent 3px 8px), linear-gradient(90deg, #e60000, #a80000)' }}
+                  className="hidden h-10 items-center gap-2 rounded-xl px-3 text-[11px] font-black uppercase tracking-wide text-white shadow-lg shadow-red-950/20 transition hover:brightness-110 md:flex"
+                >
+                  <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 01-1 1H5a1 1 0 01-1-1V7a1 1 0 011-1h5" />
+                  </svg>
+                  Cennet Bayi Paneli
+                </a>
               )}
 
               {!isZumay && !isAuctionOnlyUser && step < 99 && (
