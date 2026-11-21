@@ -80,7 +80,7 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
           )}
         </div>
         <div className="mt-2 text-[12px] font-semibold text-slate-500">
-          Puanlar: Gross {fmt(points.gross, 1)} · Baz {fmt(points.baz, 1)} · Tekil cihaz {fmt(points.tekil, 1)} · Samsung tekil {fmt(points.samsung, 1)} · Samsung premium tekil {fmt(points.premium, 1)} (her temlikli cihaz yalnız bir kalemde sayılır; "Cihaz" sütunu temlikli cihaz toplamıdır). {config.siralama === "hedef" ? "Sıralama, mağaza çarpanıyla çarpılmış puanın kişi hedefine oranına (hedef %) göredir; hedefi girilmeyen kişi sıralamaya girmez." : "Sıralama, mağaza çarpanıyla çarpılmış toplam puana göredir."} 1. ve 2. farklı mağazalardan, ilk 5 ödül en az 3 farklı mağazadan olmalıdır; kural bozulursa ödül sıradaki uygun kişiye kayar.
+          Puanlar: Gross {fmt(points.gross, 1)} · Baz {fmt(points.baz, 1)} · Tekil cihaz (tüm temlikli satış) {fmt(points.tekil, 1)} · Samsung ise ek +{fmt(points.samsung, 1)} · Samsung premium (S / Fold / Flip) ise ayrıca ek +{fmt(points.premium, 1)}. Tekil toplam adettir; Samsung ve Premium bunun içinden ayrılır. {config.siralama === "hedef" ? "Sıralama, mağaza çarpanıyla çarpılmış puanın kişi hedefine oranına (hedef %) göredir; hedefi girilmeyen kişi sıralamaya girmez." : "Sıralama, mağaza çarpanıyla çarpılmış toplam puana göredir."} 1. ve 2. farklı mağazalardan, ilk 5 ödül en az 3 farklı mağazadan olmalıdır; kural bozulursa ödül sıradaki uygun kişiye kayar.
         </div>
         {Object.keys(carpanlar).length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black">
@@ -149,7 +149,6 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
                   <th className="px-3 py-2 text-right">Tekil</th>
                   <th className="px-3 py-2 text-right">Samsung</th>
                   <th className="px-3 py-2 text-right">Premium</th>
-                  <th className="px-3 py-2 text-right">Cihaz</th>
                   <th className="px-3 py-2 text-right">Ham</th>
                   <th className="px-3 py-2 text-right">Çarpan</th>
                   <th className="px-3 py-2 text-right">Puan</th>
@@ -173,7 +172,6 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
                       <td className="px-3 py-2 text-right font-semibold">{fmt(person.tekil)}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmt(person.samsung)}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmt(person.premium)}</td>
-                      <td className="px-3 py-2 text-right font-black">{fmt((person.tekil ?? 0) + (person.samsung ?? 0) + (person.premium ?? 0))}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmt(person.ham, 1)}</td>
                       <td className="px-3 py-2 text-right font-semibold">x{fmt(person.carpan, 2)}</td>
                       <td className="px-3 py-2 text-right font-black">{fmt(person.puan, 1)}</td>

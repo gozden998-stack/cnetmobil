@@ -6,10 +6,10 @@
 //  - Puan kalemleri (kişi bazlı):
 //      GROSS  = Vodafone mağazalarında, sınıfı 5AK olan satırlardan ürün adında FATURALI / RED / KONTÖRLÜ geçenler   -> 1 puan
 //      BAZ    = sınıfı 5AK olan satırlardan ürün adında MCCM geçenler                                                -> 0,5 puan
-//      TEKİL  = WingSM TEMLİKLİ satış listesindeki 1el (sıfır cihaz) satırları                                      -> 2,5 puan
-//      SAMSUNG TEKİL          = temlikli 1el satırı, ürün Samsung                                                    -> 1,5 puan
-//      SAMSUNG PREMIUM TEKİL  = temlikli 1el satırı, Samsung S serisi / Fold / Flip                                   -> 1 puan
-//    (Tekil kalemleri BİRBİRİNİ DIŞLAR: premium -> 1, diğer Samsung -> 1,5, Samsung olmayan -> 2,5.)
+//      TEKİL  = WingSM TEMLİKLİ satış listesindeki TÜM 1el (sıfır cihaz) satırları                                  -> 2,5 puan
+//      SAMSUNG TEKİL          = o satırlardan ürünü Samsung olanlar, tekil puanına EK                               -> +1,5 puan
+//      SAMSUNG PREMIUM TEKİL  = Samsung S serisi / Fold / Flip olanlar (Samsung sayılır), ayrıca EK                  -> +1 puan
+//    (Kalemler İÇ İÇE — kullanıcı kararı: Samsung premium cihaz = 2,5 + 1,5 + 1 = 5; diğer Samsung 4; Samsung olmayan 2,5.)
 //  - ÇARPAN: mağaza bazlı, yönetici elle girer (son 3 aylık Değer Puan oranı vb. hesabı yöneticinin; sistem hesaplamaz).
 //    Kişinin puanı = Σ (mağazadaki ham puanı × o mağazanın çarpanı). Girilmeyen mağazanın çarpanı 1 sayılır (uyarı gösterilir).
 //  - Sıralama: ayar "hedef" (varsayılan) ve kişi hedefleri girilmişse HEDEF YÜZDESİ (çarpanlı puan ÷ kişi hedefi; hedefi olmayan sıralamaya girmez);
@@ -201,7 +201,13 @@ export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoint
       }
 
       diagnostics.temlik1elRows += 1;
-      add(row, depot.branchLabel, classifyTekil(row.MalAd), qtyOf(row));
+      // İç içe sayım: her temlikli 1el cihaz "tekil"dir; Samsung ise ayrıca "samsung" (ek puan); premium ise ayrıca "premium" (ek puan).
+      const kind = classifyTekil(row.MalAd);
+      const qty = qtyOf(row);
+
+      add(row, depot.branchLabel, "tekil", qty);
+      if (kind !== "tekil") add(row, depot.branchLabel, "samsung", qty);
+      if (kind === "premium") add(row, depot.branchLabel, "premium", qty);
     }
   }
 
