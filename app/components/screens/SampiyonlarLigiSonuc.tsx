@@ -82,7 +82,7 @@ export default function SampiyonlarLigiSonuc({ kaynak = "yayin" }: { kaynak?: "y
           )}
         </div>
         <div className="mt-2 text-[12px] font-semibold text-slate-500">
-          Puan = Değer Puan + stok cihaz satışı başına +{config.bonusPoints ?? 125} puan. Sıralama, kişi hedefinin yüzde kaçı tamamlandığına göre. İlk iki ödül farklı ekiplerden (Cadde-Saray ve Kapaklı-Meydan) olmalıdır; aynı ekipten ise 2. ödül farklı ekipten sıradaki kişiye kayar, atlanan kişi bir alt ödülü alır.
+          Puan = Değer Puan + stok cihaz satışı başına +{config.bonusPoints ?? 125} puan. Sıralama, kişi hedefinin yüzde kaçı tamamlandığına göre. İlk iki ödül farklı mağazalardan olmalıdır; aynı mağazadansa 2. ödül farklı mağazadan sıradaki kişiye kayar, atlanan kişi bir alt ödülü alır.
         </div>
       </div>
 

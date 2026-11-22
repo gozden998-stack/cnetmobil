@@ -1,7 +1,7 @@
 "use client";
 
 // CNETMOBIL - CMR "Şampiyonlar Ligi" yarışma ekranı (şimdilik sadece yönetici)
-// Puan: Değer Puan + stok cihaz bonusu; sıralama hedef yüzdesine göre; ödüller ekip kuralıyla dağıtılır.
+// Puan: Değer Puan + stok cihaz bonusu; sıralama hedef yüzdesine göre; ödüller mağaza kuralıyla dağıtılır (ilk iki ödül farklı mağazadan).
 
 import React, { useCallback, useEffect, useState } from "react";
 
@@ -297,7 +297,6 @@ export default function SampiyonlarLigi() {
                   <th className="px-3 py-2">Sıra</th>
                   <th className="px-3 py-2">Personel</th>
                   <th className="px-3 py-2">Mağaza</th>
-                  <th className="px-3 py-2">Ekip</th>
                   <th className="px-3 py-2 text-right">Değer Puan</th>
                   <th className="px-3 py-2 text-right">Stok cihaz</th>
                   <th className="px-3 py-2 text-right">Toplam</th>
@@ -320,7 +319,6 @@ export default function SampiyonlarLigi() {
                           {person.isManager && <span className="ml-2 text-[11px] font-semibold text-slate-400">(müdür)</span>}
                         </td>
                         <td className="px-3 py-2 font-semibold">{person.branchLabel || "-"}</td>
-                        <td className="px-3 py-2 font-semibold">{person.group || "-"}</td>
                         <td className="px-3 py-2 text-right font-semibold">{fmt(person.puan)}</td>
                         <td className="px-3 py-2 text-right font-semibold">
                           {person.stokAdet > 0 ? (

@@ -8,9 +8,10 @@
 //    puanına cihaz başına +bonus (varsayılan 125) eklenir. Liste boşsa bonus VERİLMEZ (eskiden tüm stock_devices sayılıyordu: yanlıştı).
 //  - Sıralama: hedef yüzdesi (toplam puan ÷ hedef). Mağaza müdürleri ve hedefi olmayanlar sıralamaya girmez.
 //  - Ödül: 1. 1 gr altın, 2. 1/2 gr altın, 3. 2000 TL, 4. 1000 TL.
-//  - Ekip kuralı: ilk 2 ödül FARKLI ekiplerden olmalı ((Cadde+Saray) ve (Kapaklı+Meydan) kombinasyonu). 2. sıradaki kişi 1. ile
-//    aynı ekipteyse 2. ödül, 1.'den sonra gelen ilk FARKLI ekipten kişiye kayar (3. sıra, o da aynıysa 4. ...); atlanan kişiler
+//  - Mağaza kuralı (kullanıcı kararı 2026-11-22: ekip DEĞİL, MAĞAZA): ilk 2 ödül FARKLI mağazalardan olmalı. 2. sıradaki kişi 1. ile
+//    aynı mağazadaysa 2. ödül, 1.'den sonra gelen ilk FARKLI mağazadan kişiye kayar (3. sıra, o da aynıysa 4. ...); atlanan kişiler
 //    sıradaki ödülleri alır (örnek: 1 Fatih-Merkez, 2 Emirhan-Merkez, 3 Alper-Saray -> 2. ödül Alper, 3. ödül Emirhan).
+//    Farklı mağazalarsa (ör. Merkez + Kapaklı) genel sıralama aynen geçerlidir. (Eski ekip eşlemesi `groups` artık kullanılmaz.)
 //    3. ve 4. ödül kalan kişilere sırayla.
 //  - Önkoşul: şirket toplam cihaz satışı bir önceki ayın AYNI günlerine göre %15 artmalı (bilgi olarak gösterilir).
 //
@@ -126,14 +127,11 @@ export type StandingPerson = {
   stokSatislar: Array<{ imei: string; malAd: string; tarih: string; branchLabel: string }>;
 };
 
-export function groupOf(branchLabel: string, groups: LeagueConfig["groups"]): string | null {
-  const key = normalizeName(branchLabel);
+// Ödül kuralındaki "aynı yer" = AYNI MAĞAZA (eski ekip eşlemesi `groups` yok sayılır; alan geriye dönük uyum için duruyor).
+export function groupOf(branchLabel: string, _groups?: LeagueConfig["groups"]): string | null {
+  const label = String(branchLabel ?? "").trim();
 
-  for (const [name, branches] of Object.entries(groups)) {
-    if (branches.some((branch) => normalizeName(branch) === key)) return name;
-  }
-
-  return null;
+  return label ? label.toLocaleUpperCase("tr-TR") : null;
 }
 
 // Değer Puan kişileri + stok cihaz bonusu -> yarışma sıralaması
@@ -239,8 +237,8 @@ export function assignPrizes(standing: StandingPerson[], prizes: LeagueConfig["p
     used.add(first);
   }
 
-  // 2. ödül: ilk iki ödül FARKLI ekiplerden olmalı ((Cadde-Saray) ve (Kapaklı-Meydan) kombinasyonu).
-  // 2. sıradaki kişi 1. ile aynı ekipteyse ödül kayar: 1.'den sonra gelen ilk FARKLI ekipten kişi (3., o da aynıysa 4. ...) 2. ödülü alır;
+  // 2. ödül: ilk iki ödül FARKLI mağazalardan olmalı.
+  // 2. sıradaki kişi 1. ile aynı mağazadaysa ödül kayar: 1.'den sonra gelen ilk FARKLI mağazadan kişi (3., o da aynıysa 4. ...) 2. ödülü alır;
   // atlanan kişiler sıradaki ödülleri alır (örnek: 1 Fatih-Merkez, 2 Emirhan-Merkez, 3 Alper-Saray -> 2. ödül Alper, 3. ödül Emirhan).
   if (first && prizes.length > 1) {
     const other = ranked.find((person) => !used.has(person) && (first.group === null || person.group === null || person.group !== first.group)) ?? null;
@@ -249,15 +247,15 @@ export function assignPrizes(standing: StandingPerson[], prizes: LeagueConfig["p
       slots[1] = other;
       used.add(other);
 
-      if (other.siralama !== 2) notes[1] = `Ekip kuralı: 1. ile aynı ekipten (${first.group}) olmayan ilk kişi, genel sıralamada ${other.siralama}.`;
+      if (other.siralama !== 2) notes[1] = `Mağaza kuralı: 1. ile aynı mağazadan (${first.group}) olmayan ilk kişi, genel sıralamada ${other.siralama}.`;
     } else {
-      // Farklı ekipten kimse yoksa kural uygulanamaz: sıradaki kişi alır, not düşülür
+      // Farklı mağazadan kimse yoksa kural uygulanamaz: sıradaki kişi alır, not düşülür
       const next = ranked.find((person) => !used.has(person)) ?? null;
 
       if (next) {
         slots[1] = next;
         used.add(next);
-        notes[1] = "Farklı ekipten kişi bulunamadı; genel sıraya göre verildi (kontrol edin).";
+        notes[1] = "Farklı mağazadan kişi bulunamadı; genel sıraya göre verildi (kontrol edin).";
       }
     }
   }
