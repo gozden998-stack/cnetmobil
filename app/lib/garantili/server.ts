@@ -38,6 +38,10 @@ const READ_PATHS = new Set<string>([
 // Yazma (POST) için izinli yollar: sonraki aşamalarda (cihaz açma / ilan kapatma) kullanılacak.
 const WRITE_PATHS = new Set<string>(["/kayit/cihaz-ekle", "/cihaz/guncelle", "/ilan/ac", "/ilan/kaldir-talep", "/ilan/min-fiyat"]);
 
+// Sorgu (POST ama Garantili'de HİÇBİR kayıt açmaz/değiştirmez): IMEI'nin BTK yenileme uygunluğu. Okuma anahtarıyla çağrılır.
+// (yenileme/imei-kontrol bakiye düşürebileceği, buyback/imei-kontrol başvuru sürecine bağlı olduğu için bilerek EKLENMEDİ.)
+const QUERY_PATHS = new Set<string>(["/cihaz/imei-sorgu"]);
+
 const text = (value: unknown) => String(value ?? "").trim();
 
 export function getGarantiliKey(write = false): string | null {
@@ -86,11 +90,11 @@ export async function garantiliFetch(
 ): Promise<GarantiliResponse> {
   const method = options.method ?? "GET";
 
-  if (method === "GET" ? !READ_PATHS.has(path) : !WRITE_PATHS.has(path)) {
+  if (method === "GET" ? !READ_PATHS.has(path) : !(WRITE_PATHS.has(path) || QUERY_PATHS.has(path))) {
     throw new Error(`Garantili: ${method} ${path} izinli yollar arasında değil.`);
   }
 
-  const key = getGarantiliKey(method === "POST");
+  const key = getGarantiliKey(method === "POST" && WRITE_PATHS.has(path));
 
   if (!key) throw new Error("Garantili ortam değişkeni eksik (GARANTILI_API_KEY).");
 
