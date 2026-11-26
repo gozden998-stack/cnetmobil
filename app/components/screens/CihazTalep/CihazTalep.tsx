@@ -480,6 +480,46 @@ useEffect(() => {
   if (canSeeBtk) void loadOnline();
 }, [canSeeBtk, stockSourceBranch]);
 
+// Yönetici filtreleri: BTK uygunluğu ve online durum (mağaza kullanıcısında hiç uygulanmaz)
+const [btkFilter, setBtkFilter] = useState('TÜMÜ');
+const [onlineFilter, setOnlineFilter] = useState('TÜMÜ');
+
+const onlineGroupOf = (info: OnlineInfo): 'ACIK' | 'ACILIYOR' | 'KAPALI' | 'ACILMADI' => {
+  const all = Object.values(info);
+
+  if (all.some((item) => item.durum === 'ACIK')) return 'ACIK';
+  if (all.some((item) => item.durum === 'BEKLIYOR')) return 'ACILIYOR';
+  if (all.some((item) => item.durum === 'KAPALI')) return 'KAPALI';
+
+  return 'ACILMADI';
+};
+
+const passesAdminFilters = (imei: string) => {
+  if (!canSeeBtk) return true;
+
+  if (btkFilter !== 'TÜMÜ') {
+    const durum = btkMap[imei]?.durum ?? null;
+
+    if (btkFilter === 'UYGUN' && durum !== 'UYGUN') return false;
+    if (btkFilter === 'UYGUN_DEGIL' && durum !== 'UYGUN_DEGIL') return false;
+    if (btkFilter === 'SORGULANMADI' && durum !== null) return false;
+  }
+
+  if (onlineFilter !== 'TÜMÜ') {
+    const info = onlineMap ? onlineMap[imei] : undefined;
+
+    // Online durum henüz yüklenmediyse / IMEI için kayıt yoksa filtre eşleşmez
+    if (!info) return false;
+
+    const acik = onlineGroupOf(info) === 'ACIK';
+
+    if (onlineFilter === 'ACIK' && !acik) return false;
+    if (onlineFilter === 'ACIKDEGIL' && acik) return false;
+  }
+
+  return true;
+};
+
 const runBtk = async () => {
   if (!canSeeBtk || btkRunning) return;
 
@@ -2419,13 +2459,16 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                   cihazTalepDurumFilter === 'TÜMÜ' ||
                   status === cihazTalepDurumFilter;
 
+                const adminFiltersOk = passesAdminFilters(imei.trim());
+
                 return (
                   searchOk &&
                   brandOk &&
                   hafizaOk &&
                   renkOk &&
                   gradeOk &&
-                  durumOk
+                  durumOk &&
+                  adminFiltersOk
                 );
               });
 
@@ -2492,6 +2535,8 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
               setCihazTalepRenkFilter('TÜMÜ');
               setCihazTalepGradeFilter('TÜMÜ');
               setCihazTalepDurumFilter('TÜMÜ');
+              setBtkFilter('TÜMÜ');
+              setOnlineFilter('TÜMÜ');
               setCihazTalepPage(1);
             };
 
@@ -2896,6 +2941,39 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                         <option value="REDDEDİLDİ">Reddedildi</option>
                         <option value="STOK YOK">Stok Yok</option>
                       </select>
+
+                      {canSeeBtk && (
+                        <>
+                          <select
+                            value={btkFilter}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                              setBtkFilter(e.target.value);
+                              setCihazTalepPage(1);
+                            }}
+                            className="h-12 rounded-2xl border border-violet-200 bg-violet-50/60 px-3 text-[11px] font-black text-violet-800 outline-none focus:border-violet-400"
+                            title="BTK yenileme uygunluğu (Garantili sorgusu)"
+                          >
+                            <option value="TÜMÜ">BTK: Tümü</option>
+                            <option value="UYGUN">BTK: Uygun</option>
+                            <option value="UYGUN_DEGIL">BTK: Uygun değil</option>
+                            <option value="SORGULANMADI">BTK: Sorgulanmadı</option>
+                          </select>
+
+                          <select
+                            value={onlineFilter}
+                            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => {
+                              setOnlineFilter(e.target.value);
+                              setCihazTalepPage(1);
+                            }}
+                            className="h-12 rounded-2xl border border-violet-200 bg-violet-50/60 px-3 text-[11px] font-black text-violet-800 outline-none focus:border-violet-400"
+                            title="Online satış durumu (N11 / İdefix / İKAS / Garantili)"
+                          >
+                            <option value="TÜMÜ">Online: Tümü</option>
+                            <option value="ACIK">Online: Açık</option>
+                            <option value="ACIKDEGIL">Online: Açık değil</option>
+                          </select>
+                        </>
+                      )}
                     </div>
 
                     <button
