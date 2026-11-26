@@ -18,6 +18,7 @@ import Ikas from './components/screens/Ikas/Ikas';
 import Idefix from './components/screens/Idefix/Idefix';
 import Hepsiburada from './components/screens/Hepsiburada/Hepsiburada';
 import Garantili from './components/screens/Garantili/Garantili';
+import StokRapor from './components/screens/StokRapor/StokRapor';
 import Merkez from './components/screens/Merkez/Merkez';
 import Ihale from './components/screens/Ihale/Ihale';
 import Tedarik from './components/screens/Tedarik/Tedarik';
@@ -692,7 +693,7 @@ export default function CnetmobilCmrFinalUltimate() {
   const [accessRole, setAccessRole] = useState('');
   const [adminSheetEditor, setAdminSheetEditor] = useState<AdminEditableSheetTarget | null>(null);
   
-  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'hepsiburada' | 'garantili' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'ihale' | 'wingsm_deger_puan' | 'tedarik' | 'odeme_talepleri'>('ana_sayfa');
+  const [appMode, setAppMode] = useState<'ana_sayfa' | 'merkez' | 'online' | 'ikas' | 'idefix' | 'hepsiburada' | 'garantili' | 'alim' | 'paratika' | 'servis' | 'cep_tablet' | 'yna_list' | 'dis_kanal' | 'ikinci_el_apple' | 'ikinci_el_android' | 'imei_list' | 'kampanya_sifir' | 'thh' | 'cihaz_talep' | 'stok_rapor' | 'ihale' | 'wingsm_deger_puan' | 'tedarik' | 'odeme_talepleri'>('ana_sayfa');
 
   // Super Admin panelinden normal panelde belirli ekrana direkt geçiş:
   // /?view=normal&mode=dis_kanal
@@ -2343,6 +2344,7 @@ export default function CnetmobilCmrFinalUltimate() {
             { code: 'SARAY', label: 'SARAY', detail: 'Saray Mağaza' }
           ]
         },
+        { id: 'stok_rapor', label: 'Raporlama', visible: isAdmin && !isZumay }, // Yalnız yönetici: komple stok raporu (grade / yenileme uygunluğu / online durum)
         { id: 'imei_list', label: 'Depo', visible: selectedBranch === 'VODAFONE KANALI' && !isZumay }
       ]
     }
@@ -2486,6 +2488,12 @@ export default function CnetmobilCmrFinalUltimate() {
         return (
           <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+          </svg>
+        );
+      case 'stok_rapor':
+        return (
+          <svg className={common} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 20V10m6 10V4m6 16v-7m4 7H2" />
           </svg>
         );
       case 'imei_list':
@@ -4511,6 +4519,7 @@ export default function CnetmobilCmrFinalUltimate() {
               appMode === 'idefix' ||
               appMode === 'hepsiburada' ||
               appMode === 'garantili' ||
+              appMode === 'stok_rapor' ||
               appMode === 'paratika' ||
               appMode === 'ihale' ||
               appMode === 'tedarik') &&
@@ -4634,6 +4643,8 @@ export default function CnetmobilCmrFinalUltimate() {
             <Hepsiburada />
           ) : appMode === 'garantili' && step < 99 && isSuperAdminUser ? (
             <Garantili />
+          ) : appMode === 'stok_rapor' && step < 99 && isAdmin ? (
+            <StokRapor />
           ) : appMode === 'paratika' && step < 99 && !isZumay ? (
             <Paratika />
           ) : appMode === 'imei_list' && step < 99 ? (
