@@ -7,17 +7,19 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import GarantiliImeiSorgu from "./GarantiliImeiSorgu";
+import GarantiliStokBtk from "./GarantiliStokBtk";
 import GarantiliOpen from "./GarantiliOpen";
 
 type Row = Record<string, any>;
-type Tab = "baglanti" | "ac" | "btk" | "cihaz" | "ilan" | "siparis";
-type DataTab = Exclude<Tab, "baglanti" | "ac" | "btk">;
+type Tab = "baglanti" | "ac" | "btk" | "stokbtk" | "cihaz" | "ilan" | "siparis";
+type DataTab = Exclude<Tab, "baglanti" | "ac" | "btk" | "stokbtk">;
 
 const PAGE = 50;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "baglanti", label: "Bağlantı" },
   { id: "ac", label: "WingSM'den Aç" },
+  { id: "stokbtk", label: "Stok BTK Kontrol" },
   { id: "btk", label: "BTK IMEI Sorgu" },
   { id: "cihaz", label: "Cihazlarım" },
   { id: "ilan", label: "İlanlar" },
@@ -207,7 +209,7 @@ export default function Garantili() {
   const lastSearch = useRef("");
 
   useEffect(() => {
-    if (tab === "baglanti" || tab === "ac" || tab === "btk") return;
+    if (tab === "baglanti" || tab === "ac" || tab === "btk" || tab === "stokbtk") return;
 
     const searchChanged = lastSearch.current !== search;
 
@@ -219,7 +221,7 @@ export default function Garantili() {
   }, [tab, page, search, ilanFilter, load]);
 
   const columns = useMemo<Col[]>(() => {
-    if (tab === "baglanti" || tab === "ac" || tab === "btk") return [];
+    if (tab === "baglanti" || tab === "ac" || tab === "btk" || tab === "stokbtk") return [];
 
     const fixed = COLUMNS[tab].filter((column) => rows.some((row) => row?.[column.key] !== undefined));
 
@@ -274,6 +276,8 @@ export default function Garantili() {
             </div>
           )}
         </div>
+      ) : tab === "stokbtk" ? (
+        <GarantiliStokBtk />
       ) : tab === "btk" ? (
         <GarantiliImeiSorgu />
       ) : tab === "ac" ? (

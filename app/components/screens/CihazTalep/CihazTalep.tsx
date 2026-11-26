@@ -404,6 +404,93 @@ const canManageActiveRequests = stockSourceBranch
   ? canManageCihazStock
   : Boolean(isAdmin || isMasterAccess || isSuperAdminUser);
 
+// ------------------------------------------------------
+// GARANTILI BTK YENİLEME UYGUNLUĞU (YALNIZ YÖNETİCİ)
+// Seçili mağazanın stoğundaki IMEI'ler Garantili'nin BTK sorgusuyla kontrol edilir; sonuç DB'de saklanır.
+// Mağaza kullanıcıları bu sütunu/butonu görmez ve istek atmaz. Garantili'de kayıt açılmaz, WingSM'e yazılmaz.
+// ------------------------------------------------------
+const canSeeBtk = Boolean((isAdmin || isMasterAccess || isSuperAdminUser) && stockSourceBranch);
+type BtkInfo = { durum: 'UYGUN' | 'UYGUN_DEGIL' | null; mesaj: string | null };
+const [btkMap, setBtkMap] = useState<Record<string, BtkInfo>>({});
+const [btkOzet, setBtkOzet] = useState<{ toplam: number; uygun: number; uygunDegil: number; sorgulanmamis: number } | null>(null);
+const [btkRunning, setBtkRunning] = useState(false);
+const [btkProgress, setBtkProgress] = useState('');
+const [btkError, setBtkError] = useState('');
+const btkStopRef = useRef(false);
+
+const loadBtk = async () => {
+  if (!canSeeBtk) return;
+
+  try {
+    const response = await fetch(`/api/online/garantili/btk-stok?depo=${encodeURIComponent(String(stockSourceBranch))}`, { cache: 'no-store', credentials: 'same-origin' });
+    const payload = await response.json().catch(() => null);
+
+    if (!payload?.success) throw new Error(payload?.error || `HTTP ${response.status}`);
+
+    const next: Record<string, BtkInfo> = {};
+
+    for (const item of payload.rows ?? []) next[String(item.imei)] = { durum: item.durum ?? null, mesaj: item.mesaj ?? null };
+
+    setBtkMap(next);
+    setBtkOzet(payload.ozet ?? null);
+  } catch (error: any) {
+    setBtkError(error?.message || 'BTK durumları okunamadı.');
+  }
+};
+
+useEffect(() => {
+  setBtkMap({});
+  setBtkOzet(null);
+  setBtkError('');
+
+  if (canSeeBtk) void loadBtk();
+}, [canSeeBtk, stockSourceBranch]);
+
+const runBtk = async () => {
+  if (!canSeeBtk || btkRunning) return;
+
+  // Önce hiç sorgulanmamışlar; hepsi sorgulanmışsa uygun olmayanlar yeniden (BTK arada yanıt vermeyebiliyor)
+  const mod: 'bekleyen' | 'kirmizi' = (btkOzet?.sorgulanmamis ?? 0) > 0 ? 'bekleyen' : 'kirmizi';
+  const initial = mod === 'bekleyen' ? btkOzet?.sorgulanmamis ?? 0 : btkOzet?.uygunDegil ?? 0;
+
+  if (initial === 0) return;
+
+  btkStopRef.current = false;
+  setBtkRunning(true);
+  setBtkError('');
+
+  let done = 0;
+
+  try {
+    while (!btkStopRef.current) {
+      const response = await fetch('/api/online/garantili/btk-stok', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mod, depo: stockSourceBranch, limit: 5 }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!data?.success) throw new Error(data?.error || `HTTP ${response.status}`);
+
+      done += data.results?.length ?? 0;
+      setBtkProgress(`${done}/${initial}`);
+
+      if (data.errors?.length) setBtkError(`${data.errors.length} sorguda hata: ${String(data.errors[0]).slice(0, 140)}`);
+
+      if (!data.results?.length) break;
+      if (mod === 'bekleyen' && data.kalanBekleyen === 0) break;
+      if (mod === 'kirmizi' && done >= initial) break;
+    }
+  } catch (error: any) {
+    setBtkError(error?.message || 'Sorgu yapılamadı.');
+  } finally {
+    setBtkRunning(false);
+    setBtkProgress('');
+    await loadBtk();
+  }
+};
+
 
 
 const normalizeCnetExcelHeader = (value: unknown) =>
@@ -424,6 +511,10 @@ const normalizeCnetExcelHeader = (value: unknown) =>
 const canDownloadStoreStockExcel = Boolean(
   (isAdmin || isMasterAccess || isSuperAdminUser) && stockSourceBranch
 );
+
+// Excel'de BTK durumu (yalnız yönetici ekranından indirilen Excel'ler; sonuçlar DB'deki son sorgudan gelir)
+const btkExcelDurum = (durum: string | null | undefined) =>
+  durum === 'UYGUN' ? 'UYGUN' : durum === 'UYGUN_DEGIL' ? 'UYGUN DEĞİL' : 'SORGULANMADI';
 
 const downloadMagazaStokExcel = () => {
   if (!canDownloadStoreStockExcel) return;
@@ -447,6 +538,8 @@ const downloadMagazaStokExcel = () => {
       DEGISEN_PARCA: String(row?.[6] ?? '').trim(),
       KUTU_FATURA: String(row?.[7] ?? '').trim(),
       STOK: Math.max(0, Number(row?.[8]) || 0),
+      BTK_DURUM: btkExcelDurum(btkMap[String(row?.[15] ?? '').trim()]?.durum),
+      BTK_NOT: btkMap[String(row?.[15] ?? '').trim()]?.durum === 'UYGUN_DEGIL' ? btkMap[String(row?.[15] ?? '').trim()]?.mesaj ?? '' : '',
     }));
 
   if (!rows.length) {
@@ -471,6 +564,8 @@ const downloadMagazaStokExcel = () => {
       'DEGISEN_PARCA',
       'KUTU_FATURA',
       'STOK',
+      'BTK_DURUM',
+      'BTK_NOT',
     ],
   });
 
@@ -486,10 +581,12 @@ const downloadMagazaStokExcel = () => {
     { wch: 28 },
     { wch: 22 },
     { wch: 10 },
+    { wch: 16 },
+    { wch: 48 },
   ];
 
   worksheet['!autofilter'] = {
-    ref: `A1:K${rows.length + 1}`,
+    ref: `A1:M${rows.length + 1}`,
   };
 
   const workbook = XLSX.utils.book_new();
@@ -533,6 +630,20 @@ const downloadGenelStokExcel = async () => {
       })
     );
 
+    // BTK durumları (tek istek, tüm stok). Alınamazsa Excel yine hazırlanır, sütun 'ALINAMADI' yazar.
+    let btkAll: Record<string, { durum: string | null; mesaj: string | null }> | null = {};
+
+    try {
+      const btkRes = await fetch('/api/online/garantili/btk-stok', { method: 'GET', cache: 'no-store', credentials: 'same-origin' });
+      const btkPayload = await btkRes.json().catch(() => null);
+
+      if (!btkPayload?.success) throw new Error('btk');
+
+      for (const item of btkPayload.rows ?? []) btkAll[String(item.imei)] = { durum: item.durum ?? null, mesaj: item.mesaj ?? null };
+    } catch {
+      btkAll = null;
+    }
+
     const rows = responses.flatMap(({ branch, devices }) =>
       devices.map((device: any) => ({
         MAGAZA: branch,
@@ -552,6 +663,11 @@ const downloadGenelStokExcel = async () => {
         DEGISEN_PARCA: String(device?.changed_parts ?? '').trim(),
         KUTU_FATURA: String(device?.box_invoice ?? '').trim(),
         STOK: ['AVAILABLE', 'REQUESTED', 'TRANSFER_WAITING'].includes(String(device?.status ?? '')) ? 1 : 0,
+        BTK_DURUM: btkAll === null ? 'ALINAMADI' : btkExcelDurum(btkAll[String(device?.imei ?? '').trim()]?.durum),
+        BTK_NOT:
+          btkAll !== null && btkAll[String(device?.imei ?? '').trim()]?.durum === 'UYGUN_DEGIL'
+            ? btkAll[String(device?.imei ?? '').trim()]?.mesaj ?? ''
+            : '',
       }))
     );
 
@@ -572,11 +688,13 @@ const downloadGenelStokExcel = async () => {
       'DEGISEN_PARCA',
       'KUTU_FATURA',
       'STOK',
+      'BTK_DURUM',
+      'BTK_NOT',
     ];
     const worksheet = XLSX.utils.json_to_sheet(rows, { header });
 
-    worksheet['!cols'] = [16, 19, 34, 12, 18, 9, 15, 18, 28, 22, 10].map((wch) => ({ wch }));
-    worksheet['!autofilter'] = { ref: `A1:K${rows.length + 1}` };
+    worksheet['!cols'] = [16, 19, 34, 12, 18, 9, 15, 18, 28, 22, 10, 16, 48].map((wch) => ({ wch }));
+    worksheet['!autofilter'] = { ref: `A1:M${rows.length + 1}` };
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Genel Stok');
@@ -2523,6 +2641,30 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                               <div className="rounded-2xl bg-slate-50 px-3 py-3 text-center">
                                 <div className="text-[11px] font-black uppercase tracking-wider text-slate-400">Mevcut Stok</div>
                                 <div className="mt-1 text-xl font-black text-slate-900">{currentStock}</div>
+                                {canSeeBtk && (
+                                  <div className="mt-2">
+                                    <button
+                                      type="button"
+                                      disabled={btkRunning || ((btkOzet?.sorgulanmamis ?? 0) === 0 && (btkOzet?.uygunDegil ?? 0) === 0)}
+                                      onClick={() => void runBtk()}
+                                      title="Bu mağazanın stoğundaki IMEI'leri Garantili BTK yenileme uygunluğuyla sorgular (yalnız yönetici)"
+                                      className="w-full rounded-lg bg-violet-600 px-2 py-1 text-[11px] font-black uppercase tracking-wide text-white transition hover:bg-violet-700 disabled:opacity-50"
+                                    >
+                                      {btkRunning ? `Sorgulanıyor ${btkProgress}` : 'Sorgula'}
+                                    </button>
+                                    {btkRunning && (
+                                      <button type="button" onClick={() => { btkStopRef.current = true; }} className="mt-1 text-[10px] font-black text-slate-500 underline">
+                                        Durdur
+                                      </button>
+                                    )}
+                                    {btkOzet && (
+                                      <div className="mt-1 text-[10px] font-bold leading-tight text-slate-500">
+                                        <span className="text-emerald-600">Uygun {btkOzet.uygun}</span> · <span className="text-red-600">Değil {btkOzet.uygunDegil}</span> · Bekleyen {btkOzet.sorgulanmamis}
+                                      </div>
+                                    )}
+                                    {btkError && <div className="mt-1 text-[10px] font-bold leading-tight text-red-600">{btkError}</div>}
+                                  </div>
+                                )}
                               </div>
                               <div className="rounded-2xl bg-blue-50 px-3 py-3 text-center">
                                 <div className="text-[11px] font-black uppercase tracking-wider text-blue-400">Rezerve</div>
@@ -2872,6 +3014,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           <th className="px-4 py-4 text-[11px] font-black uppercase tracking-wider text-slate-500">Değişen Parça</th>
                           <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Kutu Fatura</th>
                           <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Stok</th>
+                          {canSeeBtk && <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Durum</th>}
                           <th className="px-4 py-4 text-right text-[11px] font-black uppercase tracking-wider text-slate-500">İşlem</th>
                         </tr>
                       </thead>
@@ -3108,6 +3251,29 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                 </span>
                               </td>
 
+                              {canSeeBtk && (
+                                <td className="px-3 py-3.5 text-center">
+                                  {(() => {
+                                    const btkImei = String(row?.[15] ?? '').trim();
+                                    const btkInfo = btkImei ? btkMap[btkImei] : undefined;
+
+                                    if (!btkInfo || !btkInfo.durum) {
+                                      return <span className="text-[11px] font-bold text-slate-300">{btkImei ? '—' : ''}</span>;
+                                    }
+
+                                    return btkInfo.durum === 'UYGUN' ? (
+                                      <span title="BTK yenileme uygunluğu: uygun" className="inline-block whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                                        UYGUN
+                                      </span>
+                                    ) : (
+                                      <span title={btkInfo.mesaj || 'BTK yenileme uygunluğu: uygun değil'} className="inline-block whitespace-nowrap rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-[10px] font-black text-red-600">
+                                        UYGUN DEĞİL
+                                      </span>
+                                    );
+                                  })()}
+                                </td>
+                              )}
+
                               <td className="px-4 py-3.5 text-right">
                                 {isRequested ? (
                                   <div className="flex flex-col items-end gap-1.5">
@@ -3216,7 +3382,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                         {pageRows.length === 0 && (
                           <tr>
                             <td
-                              colSpan={11}
+                              colSpan={canSeeBtk ? 12 : 11}
                               className="px-6 py-16 text-center"
                             >
                               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
