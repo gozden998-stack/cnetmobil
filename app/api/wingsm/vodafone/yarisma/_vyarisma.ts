@@ -7,6 +7,7 @@
 //      GROSS  = Vodafone mağazalarında, sınıfı 5AK olan satırlardan ürün adında FATURALI / RED / KONTÖRLÜ / REDBOX geçenler   -> 1 puan
 //      BAZ    = sınıfı 5AK olan satırlardan ürün adında MCCM ya da PRE-TO-POS TARİFE geçenler                         -> 0,5 puan
 //      TEKİL  = WingSM TEMLİKLİ satış listesindeki TÜM 1el (sıfır cihaz) satırları                                  -> 2,5 puan
+//      BONUS  = bonusFrom (25 Kasım) ve sonrasında satılan FATURALI / RED (REDBOX dahil, KONTÖRLÜ hariç) gross satırları, gross'a EK -> +1 puan
 //      SAMSUNG TEKİL          = o satırlardan ürünü Samsung olanlar, tekil puanına EK                               -> +1,5 puan
 //      SAMSUNG PREMIUM TEKİL  = Samsung S serisi / Fold / Flip olanlar (Samsung sayılır), ayrıca EK                  -> +1 puan
 //    (Kalemler İÇ İÇE — kullanıcı kararı: Samsung premium cihaz = 2,5 + 1,5 + 1 = 5; diğer Samsung 4; Samsung olmayan 2,5.)
@@ -27,9 +28,9 @@ import type { Pool } from "pg";
 import { toWingsmDate } from "../../_deger-puan-compute";
 import { normalizeName, personnelIdentityKey } from "../../_deger-puan-personnel";
 import { addDays, archivePublished, assignManagerPrizes, buildManagerStanding, ensureYarismaTables, todayInTurkey, type ManagerRow } from "../../yarisma/_yarisma";
-import { VODAFONE_DEPOTS, fetchDepotLists, loadTargets, normalizeClass } from "../_vodafone";
+import { VODAFONE_DEPOTS, fetchDepotLists, loadTargets, normalizeClass, rowDayKey } from "../_vodafone";
 
-export type VdfPoints = { gross: number; baz: number; tekil: number; samsung: number; premium: number };
+export type VdfPoints = { gross: number; baz: number; tekil: number; samsung: number; premium: number; bonus: number };
 
 export type VdfLeagueConfig = {
   id: string;
@@ -39,6 +40,8 @@ export type VdfLeagueConfig = {
   countFrom: string;
   publishUntil: string; // son otomatik yayın günü (dahil)
   points: VdfPoints;
+  // BONUS: bu tarihte (dahil) ve sonrasında satılan FATURALI / RED (REDBOX dahil) gross satırlarına ek puan (points.bonus). KONTÖRLÜ bonus almaz.
+  bonusFrom: string;
   prizes: Array<{ rank: number; label: string }>;
   carpan: Record<string, number>; // mağaza etiketi -> çarpan (yönetici girer)
 };
@@ -50,7 +53,8 @@ export const VDF_DEFAULT_LEAGUE: VdfLeagueConfig = {
   endDate: "2026-11-30",
   countFrom: "2026-11-17",
   publishUntil: "2026-11-28",
-  points: { gross: 1, baz: 0.5, tekil: 2.5, samsung: 1.5, premium: 1 },
+  points: { gross: 1, baz: 0.5, tekil: 2.5, samsung: 1.5, premium: 1, bonus: 1 },
+  bonusFrom: "2026-11-25",
   prizes: [
     { rank: 1, label: "1 gram altın + 5 bireysel puan" },
     { rank: 2, label: "1/2 gram altın + 3 bireysel puan" },
@@ -79,7 +83,26 @@ export function foldTr(value: unknown): string {
     .trim();
 }
 
-export type Kalem = "gross" | "baz" | "tekil" | "samsung" | "premium";
+export type Kalem = "gross" | "baz" | "tekil" | "samsung" | "premium" | "bonus" | "bonusFaturali" | "bonusRed";
+
+// BONUS ürünü: FATURALI veya RED (REDBOX dahil). KONTÖRLÜ bonus almaz. Yalnız gross sayılan satırlara bakılır (çağıran kontrol eder).
+export function bonusKind(malAd: unknown): "faturali" | "red" | null {
+  const name = foldTr(malAd);
+
+  if (/faturali/.test(name)) return "faturali";
+  if (/red ?box/.test(name) || /(^|[^a-z0-9])red([^a-z0-9]|$)/.test(name)) return "red";
+
+  return null;
+}
+
+export const isBonusProduct = (malAd: unknown): boolean => bonusKind(malAd) !== null;
+
+// "2026-11-25" -> 20261125 (satır tarihiyle kıyas için); geçersizse null
+function isoDayKey(iso: string): number | null {
+  const match = String(iso ?? "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+
+  return match ? Number(match[1]) * 10000 + Number(match[2]) * 100 + Number(match[3]) : null;
+}
 
 // 5AK satırı: DEVİR ve "MCCM'Lİ CİHAZ" satırları HİÇ SAYILMAZ ("haric", kullanıcı kararı); MCCM ya da PRE-TO-POS -> baz; FATURALI / RED / REDBOX / KONTÖRLÜ -> gross;
 // hiçbirine uymayan null (tanı listesine düşer).
@@ -116,6 +139,9 @@ export type VdfPerson = {
   tekil: number;
   samsung: number;
   premium: number;
+  bonus: number; // bonus kazanan satış adedi (her biri points.bonus puan; gross'a ek) = bonusFaturali + bonusRed
+  bonusFaturali: number;
+  bonusRed: number;
   ham: number; // çarpansız toplam
   puan: number; // çarpanlı toplam (sıralama ölçütü)
   carpan: number; // etkin çarpan (puan ÷ ham)
@@ -125,6 +151,7 @@ export type VdfPerson = {
 
 export type VdfDiagnostics = {
   gross5akRows: number;
+  bonus5akRows: number;
   baz5akRows: number;
   unmatched5akRows: number;
   excluded5akRows: number; // DEVİR / MCCM'Lİ CİHAZ: bilerek sayılmayan
@@ -143,12 +170,15 @@ function qtyOf(row: Record<string, unknown>): number {
 
 const round2 = (value: number) => Math.round(value * 100) / 100;
 
-export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoints; carpan: Record<string, number> }): { standing: VdfPerson[]; diagnostics: VdfDiagnostics; carpanEksik: string[] } {
+export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoints; carpan: Record<string, number>; bonusFrom?: string }): { standing: VdfPerson[]; diagnostics: VdfDiagnostics; carpanEksik: string[] } {
+  const bonusFromKey = isoDayKey(input.bonusFrom ?? "");
+
   type Agg = { saticiAdi: string; saticiKod: string; perBranch: Map<string, Record<Kalem, number>> };
 
   const people = new Map<string, Agg>();
   const diagnostics: VdfDiagnostics = {
     gross5akRows: 0,
+    bonus5akRows: 0,
     baz5akRows: 0,
     unmatched5akRows: 0,
     excluded5akRows: 0,
@@ -164,7 +194,7 @@ export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoint
     const saticiAdi = String(row.SaticiAdI ?? "").trim();
     const key = personnelIdentityKey(saticiAdi, saticiKod);
     const agg = people.get(key) ?? { saticiAdi, saticiKod, perBranch: new Map() };
-    const counts = agg.perBranch.get(branchLabel) ?? { gross: 0, baz: 0, tekil: 0, samsung: 0, premium: 0 };
+    const counts = agg.perBranch.get(branchLabel) ?? { gross: 0, baz: 0, tekil: 0, samsung: 0, premium: 0, bonus: 0, bonusFaturali: 0, bonusRed: 0 };
 
     counts[kalem] += amount;
     agg.perBranch.set(branchLabel, counts);
@@ -193,6 +223,19 @@ export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoint
       else diagnostics.baz5akRows += 1;
 
       add(row, depot.branchLabel, kalem, sign);
+
+      // Bonus: bonusFrom tarihinde ve sonrasında satılan FATURALI / RED satırları +1 (iade -1). Tarihi okunamayan satır bonus almaz.
+      const kind = kalem === "gross" && bonusFromKey !== null ? bonusKind(row.MalAd) : null;
+
+      if (kind) {
+        const day = rowDayKey(row);
+
+        if (day !== null && day >= bonusFromKey!) {
+          diagnostics.bonus5akRows += 1;
+          add(row, depot.branchLabel, "bonus", sign);
+          add(row, depot.branchLabel, kind === "faturali" ? "bonusFaturali" : "bonusRed", sign);
+        }
+      }
     }
 
     for (const row of depot.temlik) {
@@ -222,11 +265,11 @@ export function buildVdfStanding(input: { sales: VdfSaleList[]; points: VdfPoint
   };
 
   const standing: VdfPerson[] = Array.from(people.values()).map((agg) => {
-    const totals: Record<Kalem, number> = { gross: 0, baz: 0, tekil: 0, samsung: 0, premium: 0 };
+    const totals: Record<Kalem, number> = { gross: 0, baz: 0, tekil: 0, samsung: 0, premium: 0, bonus: 0, bonusFaturali: 0, bonusRed: 0 };
     const magazalar: VdfPerson["magazalar"] = [];
 
     for (const [branchLabel, counts] of agg.perBranch) {
-      const ham = counts.gross * input.points.gross + counts.baz * input.points.baz + counts.tekil * input.points.tekil + counts.samsung * input.points.samsung + counts.premium * input.points.premium;
+      const ham = counts.gross * input.points.gross + counts.baz * input.points.baz + counts.tekil * input.points.tekil + counts.samsung * input.points.samsung + counts.premium * input.points.premium + counts.bonus * input.points.bonus;
 
       for (const kalem of Object.keys(totals) as Kalem[]) totals[kalem] += counts[kalem];
       magazalar.push({ branchLabel, ham: round2(ham), carpan: carpanOf(branchLabel) });
@@ -364,7 +407,7 @@ export function toVdfStoreView(result: Record<string, any>) {
   return {
     success: true,
     hasResult: true,
-    config: { title: result.config?.title, startDate: result.config?.startDate, endDate: result.config?.endDate, points: result.config?.points },
+    config: { title: result.config?.title, startDate: result.config?.startDate, endDate: result.config?.endDate, points: result.config?.points, bonusFrom: result.config?.bonusFrom },
     range: result.range,
     computedAt: result.computedAt,
     prizes: result.prizes,
@@ -380,6 +423,9 @@ export function toVdfStoreView(result: Record<string, any>) {
         tekil: person.tekil,
         samsung: person.samsung,
         premium: person.premium,
+        bonus: person.bonus ?? 0,
+        bonusFaturali: person.bonusFaturali ?? 0,
+        bonusRed: person.bonusRed ?? 0,
         ham: person.ham,
         carpan: person.carpan,
         puan: person.puan,
@@ -478,7 +524,7 @@ export async function computeVdfLeague(pool: Pool, config: VdfLeagueConfig, kind
     })
   );
 
-  const { standing, diagnostics, carpanEksik } = buildVdfStanding({ sales, points: config.points, carpan: config.carpan });
+  const { standing, diagnostics, carpanEksik } = buildVdfStanding({ sales, points: config.points, carpan: config.carpan, bonusFrom: config.bonusFrom });
   const prizes = assignVdfPrizes(standing, config.prizes);
 
   const payload = {
@@ -656,7 +702,8 @@ export async function computeVdfManagerLeague(pool: Pool, config: VdfLeagueConfi
 
 export type VdfDokumLine = { magaza: string; tarih: string; urun: string; sinif: string; adet: number; kalem: string; puan: number };
 
-export function listPersonLines(sales: VdfSaleList[], nameQuery: string, points: VdfPoints, carpan: Record<string, number>): { lines: VdfDokumLine[]; saticilar: string[] } {
+export function listPersonLines(sales: VdfSaleList[], nameQuery: string, points: VdfPoints, carpan: Record<string, number>, bonusFrom?: string): { lines: VdfDokumLine[]; saticilar: string[] } {
+  const bonusFromKey = isoDayKey(bonusFrom ?? "");
   const query = normalizeName(nameQuery);
   const lines: VdfDokumLine[] = [];
   const names = new Set<string>();
@@ -674,9 +721,12 @@ export function listPersonLines(sales: VdfSaleList[], nameQuery: string, points:
 
       const kalem = classify5ak(row.MalAd);
       const adet = qtyOf(row) < 0 ? -1 : 1;
-      const raw = kalem === "gross" ? points.gross : kalem === "baz" ? points.baz : 0;
+      const dayKey = rowDayKey(row);
+      const bonus = kalem === "gross" && bonusFromKey !== null && dayKey !== null && dayKey >= bonusFromKey && isBonusProduct(row.MalAd);
+      const raw = kalem === "gross" ? points.gross + (bonus ? points.bonus : 0) : kalem === "baz" ? points.baz : 0;
+      const kalemAd = kalem === "haric" ? "SAYILMADI (hariç: DEVİR / MCCM'Lİ CİHAZ)" : kalem === "gross" && bonus ? `gross + bonus (${bonusKind(row.MalAd)})` : kalem ?? "SAYILMADI (tanınmayan 5AK)";
 
-      lines.push({ magaza: depot.branchLabel, tarih: String(row.Tarih ?? ""), urun: String(row.MalAd ?? ""), sinif: "5AK", adet, kalem: kalem === "haric" ? "SAYILMADI (hariç: DEVİR / MCCM'Lİ CİHAZ)" : kalem ?? "SAYILMADI (tanınmayan 5AK)", puan: round2(raw * adet * mult(depot.branchLabel)) });
+      lines.push({ magaza: depot.branchLabel, tarih: String(row.Tarih ?? ""), urun: String(row.MalAd ?? ""), sinif: "5AK", adet, kalem: kalemAd, puan: round2(raw * adet * mult(depot.branchLabel)) });
     }
 
     for (const row of depot.temlik) {
@@ -718,5 +768,5 @@ export async function dokumVdfPerson(config: VdfLeagueConfig, nameQuery: string,
     })
   );
 
-  return { range: { from: config.countFrom, to }, ...listPersonLines(sales, nameQuery, config.points, config.carpan) };
+  return { range: { from: config.countFrom, to }, ...listPersonLines(sales, nameQuery, config.points, config.carpan, config.bonusFrom) };
 }

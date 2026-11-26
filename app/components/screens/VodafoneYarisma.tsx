@@ -80,7 +80,7 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
           )}
         </div>
         <div className="mt-2 text-[12px] font-semibold text-slate-500">
-          Puanlar: Gross {fmt(points.gross, 1)} · Baz {fmt(points.baz, 1)} · Tekil cihaz (tüm temlikli satış) {fmt(points.tekil, 1)} · Samsung ise ek +{fmt(points.samsung, 1)} · Samsung premium (S / Fold / Flip) ise ayrıca ek +{fmt(points.premium, 1)}. Tekil toplam adettir; Samsung ve Premium bunun içinden ayrılır. Sıralama, mağaza çarpanıyla çarpılmış toplam puana göredir. 1. ve 2. farklı mağazalardan, ilk 5 ödül en az 3 farklı mağazadan olmalıdır; kural bozulursa ödül sıradaki uygun kişiye kayar.
+          Puanlar: Gross {fmt(points.gross, 1)} · Baz {fmt(points.baz, 1)} · Tekil cihaz (tüm temlikli satış) {fmt(points.tekil, 1)} · Samsung ise ek +{fmt(points.samsung, 1)} · Samsung premium (S / Fold / Flip) ise ayrıca ek +{fmt(points.premium, 1)}.{config.bonusFrom && Number(points.bonus) > 0 ? ` ${dateTr(config.bonusFrom)} ve sonrasında satılan Faturalı / Red ürünlerde her satış için ek +${fmt(points.bonus)} bonus puan (Bonus sütununda görünür; bonus hamın içindedir, mağaza çarpanı hamdan sonra uygulanır).` : ""} Tekil toplam adettir; Samsung ve Premium bunun içinden ayrılır. Sıralama, mağaza çarpanıyla çarpılmış toplam puana göredir. 1. ve 2. farklı mağazalardan, ilk 5 ödül en az 3 farklı mağazadan olmalıdır; kural bozulursa ödül sıradaki uygun kişiye kayar.
         </div>
         {Object.keys(carpanlar).length > 0 && (
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-black">
@@ -138,7 +138,7 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
           )}
 
           <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <table className="w-full min-w-[720px] text-left">
+            <table className="w-full min-w-[780px] text-left">
               <thead>
                 <tr className="border-b border-slate-200 text-[12px] font-black uppercase text-slate-500">
                   <th className="px-3 py-2">Sıra</th>
@@ -149,6 +149,7 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
                   <th className="px-3 py-2 text-right">Tekil</th>
                   <th className="px-3 py-2 text-right">Samsung</th>
                   <th className="px-3 py-2 text-right">Premium</th>
+                  <th className="px-3 py-2 text-right" title="Faturalı / Red satışlardan gelen ek puan (+1)">Bonus</th>
                   <th className="px-3 py-2 text-right">Ham</th>
                   <th className="px-3 py-2 text-right">Çarpan</th>
                   <th className="px-3 py-2 text-right">Puan</th>
@@ -171,6 +172,8 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
                       <td className="px-3 py-2 text-right font-semibold">{fmt(person.tekil)}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmt(person.samsung)}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmt(person.premium)}</td>
+                      <td className="px-3 py-2 text-right font-black text-emerald-700" title={`Faturalı: ${fmt(Number(person.bonusFaturali ?? 0))} adet = ${fmt(Number(person.bonusFaturali ?? 0) * Number(points.bonus ?? 1))} puan
+Red: ${fmt(Number(person.bonusRed ?? 0))} adet = ${fmt(Number(person.bonusRed ?? 0) * Number(points.bonus ?? 1))} puan`}>{Number(person.bonus) > 0 ? `+${fmt(Number(person.bonus) * Number(points.bonus ?? 1))}` : "-"}</td>
                       <td className="px-3 py-2 text-right font-semibold">{fmt(person.ham, 1)}</td>
                       <td className="px-3 py-2 text-right font-semibold">x{fmt(person.carpan, 2)}</td>
                       <td className="px-3 py-2 text-right font-black">{fmt(person.puan, 1)}</td>
@@ -195,7 +198,7 @@ function VodafoneYarismaSonuc({ kaynak = "yayin", refreshKey = 0 }: { kaynak?: "
 function VodafoneDokumTablosu({ dokum }: { dokum: Row }) {
   const lines: Row[] = Array.isArray(dokum.lines) ? dokum.lines : [];
   const sum = (kalem: string, store?: string) => lines.filter((line) => line.kalem === kalem && (!store || line.magaza === store)).reduce((total, line) => total + Number(line.adet || 0), 0);
-  const kalemler = ["gross", "baz", "tekil", "tekil + samsung", "tekil + samsung + premium"];
+  const kalemler = ["gross", "gross + bonus (faturali)", "gross + bonus (red)", "baz", "tekil", "tekil + samsung", "tekil + samsung + premium"];
   const stores = Array.from(new Set(lines.map((line) => String(line.magaza))));
   const sayilmayan = lines.filter((line) => String(line.kalem).startsWith("SAYILMADI"));
 
@@ -441,7 +444,7 @@ function VodafoneYarismaYonetim() {
         <div className="rounded-2xl border border-slate-200 bg-white p-4 text-[12px] font-semibold text-slate-600 shadow-sm">
           <div className="mb-1 text-[13px] font-black text-slate-900">Kontrol bilgisi (yalnız yönetici)</div>
           <div>
-            5AK: Gross {diag.gross5akRows} satır · Baz {diag.baz5akRows} satır · <b className={diag.unmatched5akRows ? "text-amber-700" : ""}>tanınmayan {diag.unmatched5akRows}</b> satır (Gross/Baz'a girmedi) · hariç tutulan (DEVİR, MCCM'Lİ CİHAZ) {diag.excluded5akRows ?? 0} satır
+            5AK: Gross {diag.gross5akRows} satır (bonuslu {diag.bonus5akRows ?? 0}) · Baz {diag.baz5akRows} satır · <b className={diag.unmatched5akRows ? "text-amber-700" : ""}>tanınmayan {diag.unmatched5akRows}</b> satır (Gross/Baz'a girmedi) · hariç tutulan (DEVİR, MCCM'Lİ CİHAZ) {diag.excluded5akRows ?? 0} satır
           </div>
           <div>
             Temlikli liste: {diag.temlikRows} satır · 1el {diag.temlik1elRows} satır · 1el olmayan {diag.temlikOtherClassRows} satır (sayılmadı)
