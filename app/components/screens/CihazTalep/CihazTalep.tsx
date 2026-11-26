@@ -446,38 +446,81 @@ useEffect(() => {
   if (canSeeBtk) void loadBtk();
 }, [canSeeBtk, stockSourceBranch]);
 
+// ------------------------------------------------------
+// ONLINE KANAL DURUMU (YALNIZ YÖNETİCİ): mağaza stoğundaki IMEI'ler N11 / İdefix / İKAS / Garantili'de açık mı?
+// Salt okunur (veritabanından); stok açma işlemini hızlandırmak için "açılmadı / kapalı / açık" bir bakışta görünür.
+// ------------------------------------------------------
+type OnlineKanal = { durum: 'ACIK' | 'BEKLIYOR' | 'KAPALI' | 'YOK'; not: string | null };
+type OnlineInfo = Record<'N11' | 'IDEFIX' | 'IKAS' | 'GARANTILI', OnlineKanal>;
+const [onlineMap, setOnlineMap] = useState<Record<string, OnlineInfo> | null>(null);
+const [onlineLoading, setOnlineLoading] = useState(false);
+
+const loadOnline = async () => {
+  if (!canSeeBtk) return;
+
+  setOnlineLoading(true);
+
+  try {
+    const response = await fetch(`/api/online/channel-status?depo=${encodeURIComponent(String(stockSourceBranch))}`, { cache: 'no-store', credentials: 'same-origin' });
+    const payload = await response.json().catch(() => null);
+
+    if (!payload?.success) throw new Error(payload?.error || `HTTP ${response.status}`);
+
+    setOnlineMap(payload.map ?? {});
+  } catch {
+    setOnlineMap(null);
+  } finally {
+    setOnlineLoading(false);
+  }
+};
+
+useEffect(() => {
+  setOnlineMap(null);
+
+  if (canSeeBtk) void loadOnline();
+}, [canSeeBtk, stockSourceBranch]);
+
 const runBtk = async () => {
   if (!canSeeBtk || btkRunning) return;
 
-  // Önce hiç sorgulanmamışlar; hepsi sorgulanmışsa uygun olmayanlar yeniden (BTK arada yanıt vermeyebiliyor)
-  const mod: 'bekleyen' | 'kirmizi' = (btkOzet?.sorgulanmamis ?? 0) > 0 ? 'bekleyen' : 'kirmizi';
-  const initial = mod === 'bekleyen' ? btkOzet?.sorgulanmamis ?? 0 : btkOzet?.uygunDegil ?? 0;
+  // Haftalık kullanım: ÖNCE hiç sorgulanmamış (yeni) cihazlar, SONRA daha önce "uygun değil" çıkanlar yeniden.
+  // "Uygun" çıkanlar bir daha sorgulanmaz.
+  const newCount = btkOzet?.sorgulanmamis ?? 0;
+  const oldRedCount = btkOzet?.uygunDegil ?? 0;
+  const phases = [
+    { mod: 'bekleyen' as const, initial: newCount },
+    { mod: 'kirmizi' as const, initial: oldRedCount },
+  ].filter((phase) => phase.initial > 0);
 
-  if (initial === 0) return;
+  if (!phases.length) return;
 
   btkStopRef.current = false;
   setBtkRunning(true);
   setBtkError('');
 
-  let done = 0;
-  let rateWaits = 0;
+  const startedAt = new Date().toISOString();
   const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  let finishedAll = true;
 
-  try {
+  const runPhase = async (mod: 'bekleyen' | 'kirmizi', initial: number): Promise<boolean> => {
+    let done = 0;
+    let rateWaits = 0;
+    const label = mod === 'bekleyen' ? 'yeni' : 'uygun değil tekrar';
+
     while (!btkStopRef.current) {
       const cycleStart = Date.now();
       const response = await fetch('/api/online/garantili/btk-stok', {
         method: 'POST',
         credentials: 'same-origin',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mod, depo: stockSourceBranch, limit: 5 }),
+        body: JSON.stringify({ mod, depo: stockSourceBranch, limit: 5, oncesi: mod === 'kirmizi' ? startedAt : undefined }),
       });
       const data = await response.json().catch(() => null);
 
       if (!data?.success) throw new Error(data?.error || `HTTP ${response.status}`);
 
       done += data.results?.length ?? 0;
-      setBtkProgress(`${done}/${initial}`);
+      setBtkProgress(`${label} ${done}/${initial}`);
 
       if (data.errors?.length) setBtkError(`${data.errors.length} sorguda hata: ${String(data.errors[0]).slice(0, 140)}`);
 
@@ -486,11 +529,12 @@ const runBtk = async () => {
         rateWaits += 1;
 
         if (rateWaits > 10) {
-          setBtkError('Garantili istek sınırı uzun süre açılmadı; birkaç dakika sonra tekrar Sorgula\'ya basın.');
-          break;
+          setBtkError("Garantili istek sınırı uzun süre açılmadı; birkaç dakika sonra tekrar Sorgula'ya basın.");
+
+          return false;
         }
 
-        setBtkProgress(`${done}/${initial} · Garantili sınırı, 20 sn bekleniyor`);
+        setBtkProgress(`${label} ${done}/${initial} · Garantili sınırı, 20 sn bekleniyor`);
         await sleep(20000);
         continue;
       }
@@ -506,13 +550,29 @@ const runBtk = async () => {
 
       if (elapsed < 8000) await sleep(8000 - elapsed);
     }
+
+    return !btkStopRef.current;
+  };
+
+  try {
+    for (const phase of phases) {
+      const completed = await runPhase(phase.mod, phase.initial);
+
+      if (!completed) {
+        finishedAll = false;
+        break;
+      }
+    }
   } catch (error: any) {
+    finishedAll = false;
     setBtkError(error?.message || 'Sorgu yapılamadı.');
   } finally {
     setBtkRunning(false);
     setBtkProgress('');
     await loadBtk();
   }
+
+  return finishedAll;
 };
 
 
@@ -2687,6 +2747,9 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                       </div>
                                     )}
                                     {btkError && <div className="mt-1 text-[10px] font-bold leading-tight text-red-600">{btkError}</div>}
+                                    <button type="button" onClick={() => void loadOnline()} disabled={onlineLoading} className="mt-1 text-[10px] font-black text-slate-500 underline disabled:opacity-50">
+                                      {onlineLoading ? 'Online durum yenileniyor...' : 'Online durumu yenile ↻'}
+                                    </button>
                                   </div>
                                 )}
                               </div>
@@ -3039,6 +3102,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                           <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Kutu Fatura</th>
                           <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Stok</th>
                           {canSeeBtk && <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Durum</th>}
+                          {canSeeBtk && <th className="px-4 py-4 text-center text-[11px] font-black uppercase tracking-wider text-slate-500">Online</th>}
                           <th className="px-4 py-4 text-right text-[11px] font-black uppercase tracking-wider text-slate-500">İşlem</th>
                         </tr>
                       </thead>
@@ -3298,6 +3362,59 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                                 </td>
                               )}
 
+                              {canSeeBtk && (
+                                <td className="px-3 py-3.5 text-center">
+                                  {(() => {
+                                    const onlineImei = String(row?.[15] ?? '').trim();
+
+                                    if (!onlineImei) return null;
+                                    if (onlineMap === null) return <span className="text-[11px] font-bold text-slate-300">…</span>;
+
+                                    const info = onlineMap[onlineImei];
+
+                                    if (!info) return <span className="text-[11px] font-bold text-slate-300">—</span>;
+
+                                    const names: Record<string, string> = { N11: 'N11', IDEFIX: 'İdefix', IKAS: 'İKAS', GARANTILI: 'Garantili' };
+                                    const keys = ['N11', 'IDEFIX', 'IKAS', 'GARANTILI'] as const;
+                                    const labels: Record<string, string> = { ACIK: 'Açık', BEKLIYOR: 'Açılıyor', KAPALI: 'Kapalı', YOK: 'Açılmadı' };
+                                    const tooltip = keys.map((key) => `${names[key]}: ${labels[info[key].durum]}${info[key].not ? ` (${info[key].not})` : ''}`).join('\n');
+                                    const acik = keys.filter((key) => info[key].durum === 'ACIK');
+                                    const bekliyor = keys.filter((key) => info[key].durum === 'BEKLIYOR');
+                                    const kapali = keys.filter((key) => info[key].durum === 'KAPALI');
+
+                                    if (acik.length) {
+                                      return (
+                                        <span title={tooltip} className="inline-block whitespace-nowrap rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[10px] font-black text-emerald-700">
+                                          {acik.map((key) => names[key]).join(' + ')}
+                                        </span>
+                                      );
+                                    }
+
+                                    if (bekliyor.length) {
+                                      return (
+                                        <span title={tooltip} className="inline-block whitespace-nowrap rounded-lg border border-amber-200 bg-amber-50 px-2.5 py-1 text-[10px] font-black text-amber-700">
+                                          AÇILIYOR
+                                        </span>
+                                      );
+                                    }
+
+                                    if (kapali.length) {
+                                      return (
+                                        <span title={tooltip} className="inline-block whitespace-nowrap rounded-lg border border-rose-200 bg-rose-50 px-2.5 py-1 text-[10px] font-black text-rose-600">
+                                          KAPALI
+                                        </span>
+                                      );
+                                    }
+
+                                    return (
+                                      <span title={tooltip} className="inline-block whitespace-nowrap rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-[10px] font-black text-slate-500">
+                                        AÇILMADI
+                                      </span>
+                                    );
+                                  })()}
+                                </td>
+                              )}
+
                               <td className="px-4 py-3.5 text-right">
                                 {isRequested ? (
                                   <div className="flex flex-col items-end gap-1.5">
@@ -3406,7 +3523,7 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
                         {pageRows.length === 0 && (
                           <tr>
                             <td
-                              colSpan={canSeeBtk ? 12 : 11}
+                              colSpan={canSeeBtk ? 13 : 11}
                               className="px-6 py-16 text-center"
                             >
                               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">

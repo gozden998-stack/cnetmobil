@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       mod: body?.mod === "kirmizi" ? "kirmizi" : "bekleyen",
       limit: body?.limit,
       depo: cleanDepo(body?.depo),
+      oncesi: typeof body?.oncesi === "string" ? body.oncesi : null,
     });
 
     return json({ success: true, ...result });

@@ -124,7 +124,8 @@ const defaultQuery: BtkQueryFn = async (imei) => {
   return { ok: result.ok, data: result.body?.data ?? null, message: result.body?.message ?? null };
 };
 
-export type BtkRunInput = { imeis?: string[]; mod?: "bekleyen" | "kirmizi"; limit?: number; depo?: string | null };
+// oncesi (ISO): kirmizi modunda yalniz BU ANDAN ÖNCE sorgulanmış kırmızılar (aynı turda yeni kırmızı olanlar tekrar sorulmaz)
+export type BtkRunInput = { imeis?: string[]; mod?: "bekleyen" | "kirmizi"; limit?: number; depo?: string | null; oncesi?: string | null };
 export type BtkRunResult = {
   results: Array<{ imei: string; durum: BtkDurum; mesaj: string | null }>;
   errors: string[];
@@ -141,6 +142,8 @@ export async function runBtkChecks(pool: Pool, input: BtkRunInput, query: BtkQue
 
   const limit = Math.min(10, Math.max(1, Math.trunc(Number(input.limit)) || 5));
   const depo = input.depo ? String(input.depo).trim() : null;
+  const oncesiTime = input.oncesi ? new Date(input.oncesi) : null;
+  const oncesi = oncesiTime && !Number.isNaN(oncesiTime.getTime()) ? oncesiTime.toISOString() : null;
   let targets: string[] = [];
 
   if (Array.isArray(input.imeis) && input.imeis.length) {
@@ -151,8 +154,9 @@ export async function runBtkChecks(pool: Pool, input: BtkRunInput, query: BtkQue
   } else if (input.mod === "kirmizi") {
     const rows = await pool.query(
       `SELECT d.imei FROM public.stock_devices d JOIN public.garantili_btk_check c ON c.imei = d.imei
-       WHERE ${STOCK_WHERE} AND c.durum = 'UYGUN_DEGIL' AND ($2::text IS NULL OR d.current_branch_code = $2) ORDER BY c.checked_at ASC LIMIT $1`,
-      [limit, depo]
+       WHERE ${STOCK_WHERE} AND c.durum = 'UYGUN_DEGIL' AND ($2::text IS NULL OR d.current_branch_code = $2)
+         AND ($3::timestamptz IS NULL OR c.checked_at < $3::timestamptz) ORDER BY c.checked_at ASC LIMIT $1`,
+      [limit, depo, oncesi]
     );
 
     targets = rows.rows.map((row: any) => String(row.imei));
