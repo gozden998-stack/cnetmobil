@@ -129,7 +129,11 @@ export type BtkRunResult = {
   results: Array<{ imei: string; durum: BtkDurum; mesaj: string | null }>;
   errors: string[];
   kalanBekleyen: number;
+  // Garantili dakika sınırına (kendi koyduğumuz 45/dk) yaklaşıldı: hata değil, çağıran biraz bekleyip devam eder
+  rateLimited: boolean;
 };
+
+const isRateLimitMessage = (message: string) => /istek sınırı/i.test(message);
 
 // Seçilen (ya da modla belirlenen) STOKTAKİ IMEI'leri sırayla sorgular, sonucu kaydeder. Stok dışı IMEI sorgulanmaz.
 export async function runBtkChecks(pool: Pool, input: BtkRunInput, query: BtkQueryFn = defaultQuery): Promise<BtkRunResult> {
@@ -165,6 +169,7 @@ export async function runBtkChecks(pool: Pool, input: BtkRunInput, query: BtkQue
   const results: BtkRunResult["results"] = [];
   const errors: string[] = [];
   let consecutiveErrors = 0;
+  let rateLimited = false;
 
   for (const imei of targets) {
     try {
@@ -187,7 +192,15 @@ export async function runBtkChecks(pool: Pool, input: BtkRunInput, query: BtkQue
         consecutiveErrors = 0;
       }
     } catch (error) {
-      errors.push(`${imei}: ${error instanceof Error ? error.message : String(error)}`);
+      const message = error instanceof Error ? error.message : String(error);
+
+      // Hız sınırı gerçek bir hata değil: bu IMEI sorgulanmadı, kaydedilmedi; döngü durur, çağıran bekleyip devam eder
+      if (isRateLimitMessage(message)) {
+        rateLimited = true;
+        break;
+      }
+
+      errors.push(`${imei}: ${message}`);
       consecutiveErrors += 1;
     }
 
@@ -201,5 +214,5 @@ export async function runBtkChecks(pool: Pool, input: BtkRunInput, query: BtkQue
     [depo]
   );
 
-  return { results, errors, kalanBekleyen: Number(pending.rows[0]?.n) || 0 };
+  return { results, errors, kalanBekleyen: Number(pending.rows[0]?.n) || 0, rateLimited };
 }

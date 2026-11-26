@@ -460,9 +460,12 @@ const runBtk = async () => {
   setBtkError('');
 
   let done = 0;
+  let rateWaits = 0;
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   try {
     while (!btkStopRef.current) {
+      const cycleStart = Date.now();
       const response = await fetch('/api/online/garantili/btk-stok', {
         method: 'POST',
         credentials: 'same-origin',
@@ -478,9 +481,30 @@ const runBtk = async () => {
 
       if (data.errors?.length) setBtkError(`${data.errors.length} sorguda hata: ${String(data.errors[0]).slice(0, 140)}`);
 
+      // Garantili dakika sınırı: hata değil, 20 sn bekleyip kaldığı yerden devam (en çok 10 kez üst üste)
+      if (data.rateLimited) {
+        rateWaits += 1;
+
+        if (rateWaits > 10) {
+          setBtkError('Garantili istek sınırı uzun süre açılmadı; birkaç dakika sonra tekrar Sorgula\'ya basın.');
+          break;
+        }
+
+        setBtkProgress(`${done}/${initial} · Garantili sınırı, 20 sn bekleniyor`);
+        await sleep(20000);
+        continue;
+      }
+
+      rateWaits = 0;
+
       if (!data.results?.length) break;
       if (mod === 'bekleyen' && data.kalanBekleyen === 0) break;
       if (mod === 'kirmizi' && done >= initial) break;
+
+      // Dakikada ~40 sorguyu aşmamak için her tur en az 8 sn sürsün (5 sorgu / 8 sn)
+      const elapsed = Date.now() - cycleStart;
+
+      if (elapsed < 8000) await sleep(8000 - elapsed);
     }
   } catch (error: any) {
     setBtkError(error?.message || 'Sorgu yapılamadı.');

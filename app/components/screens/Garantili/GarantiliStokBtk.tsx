@@ -81,9 +81,12 @@ export default function GarantiliStokBtk() {
 
     const initial = mod === "bekleyen" ? ozet?.sorgulanmamis ?? 0 : ozet?.uygunDegil ?? 0;
     let processed = 0;
+    let rateWaits = 0;
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
     try {
       while (!stopRef.current) {
+        const cycleStart = Date.now();
         const data = await post({ mod, limit: 5 });
 
         processed += data.results?.length ?? 0;
@@ -93,9 +96,30 @@ export default function GarantiliStokBtk() {
           setError(`${data.errors.length} sorguda hata: ${data.errors.slice(0, 2).join(" | ")}`);
         }
 
+        // Garantili dakika sınırı: hata değil, 20 sn bekleyip devam (en çok 10 kez üst üste)
+        if (data.rateLimited) {
+          rateWaits += 1;
+
+          if (rateWaits > 10) {
+            setError("Garantili istek sınırı uzun süre açılmadı; birkaç dakika sonra tekrar deneyin.");
+            break;
+          }
+
+          setProgress(`${processed} / ${initial} sorgulandı · Garantili sınırı, 20 sn bekleniyor`);
+          await sleep(20000);
+          continue;
+        }
+
+        rateWaits = 0;
+
         if (!data.results?.length) break;
         if (mod === "bekleyen" && data.kalanBekleyen === 0) break;
         if (mod === "kirmizi" && processed >= initial) break;
+
+        // Dakikada ~40 sorguyu aşmamak için her tur en az 8 sn sürsün
+        const elapsed = Date.now() - cycleStart;
+
+        if (elapsed < 8000) await sleep(8000 - elapsed);
       }
     } catch (e: any) {
       setError(e?.message || "Sorgu yapılamadı.");
