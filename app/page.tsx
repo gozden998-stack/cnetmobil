@@ -87,7 +87,7 @@ function buildPanelData(rows: SheetRow[]) {
 
   return {
     Devices: getRangeFromSheetRows(sheets['Google Sheets ile Kurumsal Alım Sistemi'] || [], 2, 1000, 0, 6),
-    Ayarlar: getRangeFromSheetRows(sheets['Ayarlar'] || [], 1, 25, 0, 2),
+    Ayarlar: getRangeFromSheetRows(sheets['Ayarlar'] || [], 1, 100, 0, 2), // 25'te kalırsa sheet'e eklenen yeni oran satırları (Kasa_Cok_Iyi, Kamera_*) okunmuyordu
     Alimlar: getRangeFromSheetRows(sheets['Alimlar'] || [], 2, 500, 0, 8),
     Markalar: getRangeFromSheetRows(sheets['Markalar'] || [], 2, 50, 0, 2),
     CepTablet: getRangeFromSheetRows(sheets['CEP + TABLET+IOT SAAT LIST'] || [], 1, 1000, 0, 12),
