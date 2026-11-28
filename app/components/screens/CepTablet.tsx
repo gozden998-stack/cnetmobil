@@ -396,7 +396,7 @@ function ProductPanel({
                       <span
                         title={row.name}
                         className={[
-                          "truncate text-[10px] font-black tracking-[-0.01em]",
+                          "break-words text-[10px] font-black leading-snug tracking-[-0.01em]",
                           row.highlighted ? "text-amber-800" : "text-slate-800",
                         ].join(" ")}
                       >
