@@ -60,6 +60,8 @@ const [hareketGecmisiDateFrom, setHareketGecmisiDateFrom] = useState('');
 const [hareketGecmisiDateTo, setHareketGecmisiDateTo] = useState('');
 const [hareketGecmisiImei, setHareketGecmisiImei] = useState('');
 const [hareketGecmisiEventType, setHareketGecmisiEventType] = useState('ALL');
+const [imeiKarti, setImeiKarti] = useState<any>(null);
+const [imeiKartiHata, setImeiKartiHata] = useState('');
 
 // ======================================================
 // POSTGRESQL MAĞAZA STOK KÖPRÜSÜ
@@ -2215,6 +2217,23 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
       }
 
       setHareketGecmisiRows(Array.isArray(result?.events) ? result.events : []);
+
+      // Yönetici + 15 haneli IMEI: mağaza/tarih sınırı olmadan tüm hareketler + satış özeti (müşteri, tutar, grade)
+      if (canSeeBtk && imei.length === 15) {
+        try {
+          const kartResponse = await fetch(`/api/stock/imei-karti?imei=${imei}`, { method: 'GET', cache: 'no-store', credentials: 'same-origin' });
+          const kart = await kartResponse.json().catch(() => null);
+
+          setImeiKarti(kart?.success ? kart : null);
+          setImeiKartiHata(kart?.success || kartResponse.status === 401 || kartResponse.status === 403 ? '' : String(kart?.error || 'IMEI kartı alınamadı.'));
+        } catch {
+          setImeiKarti(null);
+          setImeiKartiHata('IMEI kartı alınamadı.');
+        }
+      } else {
+        setImeiKarti(null);
+        setImeiKartiHata('');
+      }
     } catch (error: any) {
       setHareketGecmisiRows([]);
       setHareketGecmisiError(error?.message || 'Hareket geçmişi alınamadı.');
@@ -2229,6 +2248,8 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
     setHareketGecmisiDateFrom(today);
     setHareketGecmisiDateTo(today);
     setHareketGecmisiImei('');
+    setImeiKarti(null);
+    setImeiKartiHata('');
     setHareketGecmisiEventType('ALL');
     setHareketGecmisiModalOpen(true);
     setHareketGecmisiLoading(true);
@@ -2262,6 +2283,9 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
       WING_TRANSFER_COMPLETED: 'TRANSFER TAMAMLANDI',
       TRANSFER_COMPLETED: 'TRANSFER TAMAMLANDI',
       DEVICE_SOLD: 'SATILDI',
+      WINGSM_SALE_DETECTED: 'SATILDI (WINGSM)',
+      WINGSM_SALE_REVERSED: 'SATIŞ İADE (WINGSM)',
+      TRANSFER_COMPLETED_WINGSM_DIRECT: 'TRANSFER (WINGSM DİREKT)',
       SOLD: 'SATILDI',
     };
     return labels[type] || type.replace(/_/g, ' ') || '-';
@@ -4763,6 +4787,86 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
       </div>
 
       <div className="overflow-y-auto p-5 custom-scrollbar sm:p-7">
+        {imeiKartiHata && <div className="mb-4 rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-bold text-rose-700">{imeiKartiHata}</div>}
+
+        {imeiKarti && (
+          <div className="mb-6 rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">IMEI KARTI · YALNIZ YÖNETİCİ</div>
+                <div className="mt-1 font-mono text-lg font-black text-slate-900">{imeiKarti.imei}</div>
+                <div className="mt-1 text-sm font-black text-slate-700">
+                  {imeiKarti.cihaz ? [imeiKarti.cihaz.marka, imeiKarti.cihaz.model, imeiKarti.cihaz.hafiza, imeiKarti.cihaz.renk].filter(Boolean).join(' ') || '-' : 'Cihaz kaydı bulunamadı'}
+                </div>
+              </div>
+              {imeiKarti.cihaz && (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full border border-violet-200 bg-violet-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-violet-700">GRADE: {imeiKarti.cihaz.grade || '-'}</span>
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-black uppercase tracking-wider text-slate-600">{imeiKarti.cihaz.durum || '-'} · {imeiKarti.cihaz.depo || '-'}</span>
+                </div>
+              )}
+            </div>
+
+            {imeiKarti.satisDurumu === 'SATILDI' && imeiKarti.satis && (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/60 p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.18em] text-emerald-700">SATIŞ BİLGİSİ</div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  {[
+                    ['Müşteri', imeiKarti.satis.musteri],
+                    ['Telefon', imeiKarti.satis.telefon],
+                    ['Satış tutarı', imeiKarti.satis.tutar !== null && imeiKarti.satis.tutar !== undefined ? `${Number(imeiKarti.satis.tutar).toLocaleString('tr-TR')} ₺` : null],
+                    ['Tarih / saat', [imeiKarti.satis.tarih, imeiKarti.satis.saat].filter(Boolean).join(' ')],
+                    ['Satan mağaza', imeiKarti.satis.magaza],
+                    ['Satan personel', imeiKarti.satis.personel],
+                    ['Fatura no', imeiKarti.satis.faturaNo],
+                    ['Ürün (WingSM)', imeiKarti.satis.urun],
+                  ].map(([label, value]) => (
+                    <div key={String(label)}>
+                      <div className="text-[10px] font-black uppercase tracking-wider text-slate-400">{label}</div>
+                      <div className="mt-0.5 text-sm font-black text-slate-900">{value || '-'}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {imeiKarti.satisDurumu === 'IADE' && (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-bold text-amber-800">
+                Bu cihazın satışı sonradan iade edilmiş (WingSM iade satırı). Son satış: {imeiKarti.satis ? [imeiKarti.satis.musteri, imeiKarti.satis.tutar ? `${Number(imeiKarti.satis.tutar).toLocaleString('tr-TR')} ₺` : null, imeiKarti.satis.tarih].filter(Boolean).join(' · ') : '-'}
+              </div>
+            )}
+
+            {imeiKarti.satisDurumu === 'YOK' && imeiKarti.cihaz?.durum === 'SOLD' && (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm font-bold text-slate-600">Cihaz satıldı görünüyor ama satış detayı kayıtlı değil (satış kaydı tutulmadan önceki ya da başka yoldan kapanmış bir cihaz olabilir).</div>
+            )}
+
+            {!imeiKarti.bulundu && <div className="mt-4 text-sm font-bold text-slate-500">Bu IMEI için kayıt bulunamadı.</div>}
+
+            {Array.isArray(imeiKarti.olaylar) && imeiKarti.olaylar.length > 0 && (
+              <div className="mt-4">
+                <div className="mb-2 text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">TÜM HAREKETLER ({imeiKarti.olaylar.length}) · tarih/mağaza sınırı yok</div>
+                <div className="max-h-[260px] overflow-y-auto rounded-2xl border border-slate-200">
+                  <table className="w-full text-left text-xs">
+                    <tbody>
+                      {imeiKarti.olaylar.map((olay: any) => (
+                        <tr key={String(olay.id)} className="border-b border-slate-100 last:border-0">
+                          <td className="whitespace-nowrap px-4 py-2.5 font-bold text-slate-500">{formatTransferDate(olay.created_at)}</td>
+                          <td className="px-4 py-2.5">
+                            <span className={`inline-flex rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-wider ${getHistoryEventStyle(olay.event_type)}`}>{getHistoryEventLabel(olay.event_type)}</span>
+                          </td>
+                          <td className="px-4 py-2.5 font-black text-slate-700">{olay.from_branch_code || olay.to_branch_code ? `${olay.from_branch_code || '-'} → ${olay.to_branch_code || '-'}` : '-'}</td>
+                          <td className="px-4 py-2.5 font-bold text-slate-500">{olay.old_status || '-'} → {olay.new_status || '-'}</td>
+                          <td className="px-4 py-2.5 text-right font-black text-slate-700">{olay.performed_by || 'SİSTEM'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-400">KAYIT SAYISI</div>
