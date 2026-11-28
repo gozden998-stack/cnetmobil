@@ -1927,6 +1927,7 @@ export default function CnetmobilCmrFinalUltimate() {
       }
 
       if (status.screen === 'Çizikler var') price *= (1 - ((config.Ekran_Cizik || 0) / 100));
+      if (status.cosmetic === 'Çok İyi') price *= (1 - ((config.Kasa_Cok_Iyi ?? config.Kasa_CokIyi ?? config.Kasa_Iyi ?? 0) / 100)); // Sheet'te Kasa_Cok_Iyi satırı yoksa İyi oranı uygulanır (fazla ödememek için)
       if (status.cosmetic === 'İyi') price *= (1 - ((config.Kasa_Iyi || 0) / 100));
 
       let kasaKotuYuzdesi = config.Kasa_Kotu || 0;
@@ -5536,7 +5537,7 @@ export default function CnetmobilCmrFinalUltimate() {
                     const [key, val] = detail.split(':');
                     
                     let valColor = "text-slate-700";
-                    if (['Mükemmel', 'Sağlam', 'Evet', '95-100', 'Fiziksel SIM (TR)', 'Üretici Garantili'].includes(val)) valColor = "text-emerald-600";
+                    if (['Mükemmel', 'Çok İyi', 'Sağlam', 'Evet', '95-100', 'Fiziksel SIM (TR)', 'Üretici Garantili'].includes(val)) valColor = "text-emerald-600";
                     else if (['Kötü', 'Kırık', 'Bilinmeyen Parça', 'Hayır', 'Arızalı', 'Garanti Yok'].includes(val)) valColor = "text-rose-600";
                     else if (['İyi', 'Çizikler var', 'Cızırtı var', 'Bilinmeyen Parça'].includes(val)) valColor = "text-amber-600";
 

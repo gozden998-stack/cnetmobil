@@ -508,7 +508,7 @@ export default function CihazAlim({
           ? ["Sağlam", "Çizikler var", "Kırık", "Bilinmeyen Parça"]
           : ["Sağlam", "Çizikler var", "Kırık"],
     },
-    { label: "Kozmetik Durum", field: "cosmetic", options: ["Mükemmel", "İyi", "Kötü"] },
+    { label: "Kozmetik Durum", field: "cosmetic", options: ["Mükemmel", "Çok İyi", "İyi", "Kötü"] },
     { label: "Face ID / Touch ID", field: "faceId", options: ["Evet", "Hayır"] },
     {
       label: "Batarya Sağlığı",
