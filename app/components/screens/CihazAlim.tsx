@@ -516,6 +516,7 @@ export default function CihazAlim({
       options: ["95-100", "85-95", "0-85", "Bilinmeyen Parça"],
     },
     { label: "Ahize / Buzzer", field: "speaker", options: ["Sağlam", "Cızırtı var", "Arızalı"] },
+    { label: "Kamera Durumu", field: "camera", options: ["Sorunsuz", "Kamerada leke", "Çalışmıyor", "Bilinmeyen parça"] },
     {
       label: "Kayıt Durumu",
       field: "sim",
@@ -622,7 +623,7 @@ export default function CihazAlim({
             </div>
             <div>
               <p className="text-[10px] font-black uppercase tracking-[0.1em] text-slate-400">Ekspertiz</p>
-              <p className="text-[18px] font-black text-slate-950">{selectedQuestionCount}/8</p>
+              <p className="text-[18px] font-black text-slate-950">{selectedQuestionCount}/{expertQuestions.length}</p>
               <p className="text-[10px] font-semibold text-slate-400">Kontrol adımı</p>
             </div>
           </div>
@@ -1000,8 +1001,8 @@ export default function CihazAlim({
                       Tüm kontroller tamamlandığında teklif aktif olur.
                     </p>
                   </div>
-                  <span className={`rounded-full px-3 py-1.5 text-[10px] font-black ${selectedQuestionCount === 8 ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
-                    {selectedQuestionCount}/8
+                  <span className={`rounded-full px-3 py-1.5 text-[10px] font-black ${selectedQuestionCount === expertQuestions.length ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-500"}`}>
+                    {selectedQuestionCount}/{expertQuestions.length}
                   </span>
                 </div>
 

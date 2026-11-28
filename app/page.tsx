@@ -860,7 +860,7 @@ export default function CnetmobilCmrFinalUltimate() {
     'CNET' | 'CMR' | 'CADDE' | 'KAPAKLI' | 'SARAY'
   >('CMR');
   const [customer, setCustomer] = useState({ name: '', phone: '', imei: '' });
-  const [status, setStatus] = useState<any>({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
+  const [status, setStatus] = useState<any>({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null, camera: null });
   const [prices, setPrices] = useState({ cash: 0, trade: 0 });
   const [isCustomOfferActive, setIsCustomOfferActive] = useState(false);
   const [customOffer, setCustomOffer] = useState<string>('');
@@ -1613,7 +1613,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setSelectedColor('Diğer');
     setSearchQuery(''); 
     setCustomer({ name: '', phone: '', imei: '' });
-    setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
+    setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null, camera: null });
     setIsCustomOfferActive(false);
     setCustomOffer('');
     setIsCustomTradeOfferActive(false);
@@ -1626,7 +1626,7 @@ export default function CnetmobilCmrFinalUltimate() {
     setSelectedCapacity(null);
     setSelectedColor('Diğer');
     setSearchQuery(''); 
-    setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null });
+    setStatus({ power: null, screen: null, cosmetic: null, faceId: null, battery: null, sim: null, warranty: null, speaker: null, camera: null });
     setIsCustomOfferActive(false);
     setCustomOffer('');
     setIsCustomTradeOfferActive(false);
@@ -1946,6 +1946,11 @@ export default function CnetmobilCmrFinalUltimate() {
       if (status.speaker === 'Cızırtı var') price -= 500;
       if (status.speaker === 'Arızalı') price -= 1000;
 
+      // Kamera: oranlar Sheet'ten (Kamera_Leke, Kamera_Calismiyor, Kamera_Bilinmeyen_Parca); satır yoksa benzer oran: leke -> Ekran_Cizik, çalışmıyor -> Ekran_Kirik, bilinmeyen -> Bilinmeyen_Parca
+      if (status.camera === 'Kamerada leke') price *= (1 - ((config.Kamera_Leke ?? config.Ekran_Cizik ?? 0) / 100));
+      if (status.camera === 'Çalışmıyor') price *= (1 - ((config.Kamera_Calismiyor ?? config.Ekran_Kirik ?? 0) / 100));
+      if (status.camera === 'Bilinmeyen parça') price *= (1 - ((config.Kamera_Bilinmeyen_Parca ?? config.Bilinmeyen_Parca ?? 0) / 100));
+
       let colorBonus = 1;
       
       const isPerfectCondition = 
@@ -2049,6 +2054,7 @@ export default function CnetmobilCmrFinalUltimate() {
       status.battery ? `Pil:${status.battery}` : '',
       status.faceId ? `FaceID:${status.faceId}` : '',
       status.speaker ? `Ahize:${status.speaker}` : '',
+      status.camera ? `Kamera:${status.camera}` : '',
       status.sim ? `Kayıt:${status.sim}` : '',
       status.warranty ? `Garanti:${status.warranty}` : ''
     ].filter(Boolean).join(' | ');
@@ -5537,9 +5543,9 @@ export default function CnetmobilCmrFinalUltimate() {
                     const [key, val] = detail.split(':');
                     
                     let valColor = "text-slate-700";
-                    if (['Mükemmel', 'Çok İyi', 'Sağlam', 'Evet', '95-100', 'Fiziksel SIM (TR)', 'Üretici Garantili'].includes(val)) valColor = "text-emerald-600";
-                    else if (['Kötü', 'Kırık', 'Bilinmeyen Parça', 'Hayır', 'Arızalı', 'Garanti Yok'].includes(val)) valColor = "text-rose-600";
-                    else if (['İyi', 'Çizikler var', 'Cızırtı var', 'Bilinmeyen Parça'].includes(val)) valColor = "text-amber-600";
+                    if (['Mükemmel', 'Çok İyi', 'Sağlam', 'Sorunsuz', 'Evet', '95-100', 'Fiziksel SIM (TR)', 'Üretici Garantili'].includes(val)) valColor = "text-emerald-600";
+                    else if (['Kötü', 'Kırık', 'Çalışmıyor', 'Bilinmeyen parça', 'Bilinmeyen Parça', 'Hayır', 'Arızalı', 'Garanti Yok'].includes(val)) valColor = "text-rose-600";
+                    else if (['İyi', 'Çizikler var', 'Cızırtı var', 'Kamerada leke', 'Bilinmeyen Parça'].includes(val)) valColor = "text-amber-600";
 
                     return (
                         <div key={idx} className="bg-slate-50 border border-slate-200 p-4 rounded-2xl flex flex-col gap-1.5 hover:border-slate-400 transition-colors">
@@ -5597,6 +5603,7 @@ export default function CnetmobilCmrFinalUltimate() {
                  <p>Kozmetik Durum: <span style={{fontWeight:'900'}}>{status.cosmetic}</span></p>
                  <p>Face ID / Touch ID: <span style={{fontWeight:'900'}}>{status.faceId}</span></p>
                  <p>Ahize / Buzzer: <span style={{fontWeight:'900'}}>{status.speaker}</span></p>
+                 <p>Kamera Durumu: <span style={{fontWeight:'900'}}>{status.camera}</span></p>
                  <p>Batarya Sağlığı: <span style={{fontWeight:'900'}}>{status.battery}</span></p>
                  <p>Kayıt Durumu: <span style={{fontWeight:'900'}}>{status.sim}</span></p>
                  <p>Garanti ve Durum: <span style={{fontWeight:'900'}}>{status.warranty}</span></p>
