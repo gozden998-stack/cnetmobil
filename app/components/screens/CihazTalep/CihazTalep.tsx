@@ -2185,21 +2185,23 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
     return { dateFrom: today, dateTo: today };
   };
 
-  const loadHareketGecmisi = async (period = hareketGecmisiPeriod) => {
+  const loadHareketGecmisi = async (period = hareketGecmisiPeriod, imeiOverride?: string) => {
     if (!stockSourceBranch) return;
 
     setHareketGecmisiLoading(true);
     setHareketGecmisiError('');
 
     try {
-      const { dateFrom, dateTo } = getHistoryDates(period);
+      // Tam IMEI (15 hane) girildiyse tarih seçimi yok sayılır: o cihazın tüm geçmişi aranır
+      const imei = (imeiOverride ?? hareketGecmisiImei).replace(/\D/g, '').trim();
+      const tamImei = imei.length === 15;
+      const { dateFrom, dateTo } = tamImei ? { dateFrom: '2020-01-01', dateTo: getIstanbulDate(0) } : getHistoryDates(period);
       const params = new URLSearchParams({
         branch: stockSourceBranch,
         dateFrom,
         dateTo,
       });
 
-      const imei = hareketGecmisiImei.replace(/\D/g, '').trim();
       if (imei) params.set('imei', imei);
       if (hareketGecmisiEventType !== 'ALL') {
         params.set('eventType', hareketGecmisiEventType);
@@ -4754,7 +4756,15 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
 
           <input
             value={hareketGecmisiImei}
-            onChange={(e) => setHareketGecmisiImei(e.target.value.replace(/\D/g, '').slice(0, 15))}
+            onChange={(e) => {
+              const next = e.target.value.replace(/\D/g, '').slice(0, 15);
+
+              setHareketGecmisiImei(next);
+              if (next.length === 15) void loadHareketGecmisi(hareketGecmisiPeriod, next);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void loadHareketGecmisi();
+            }}
             placeholder="IMEI ara..."
             className="h-11 min-w-[210px] rounded-2xl border border-slate-200 bg-white px-4 font-mono text-xs font-bold text-slate-700 outline-none focus:border-blue-400"
           />
@@ -4866,6 +4876,8 @@ const handleTalepKaydiSil = async (rowIndex: number, cihazAdi: string, magaza: s
             )}
           </div>
         )}
+
+        {hareketGecmisiImei.length === 15 && <div className="mb-3 rounded-xl bg-blue-50 px-4 py-2 text-[11px] font-bold text-blue-800">Tam IMEI girildi: tarih seçimi yok sayıldı, bu cihazın tüm geçmişi aranıyor.</div>}
 
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
